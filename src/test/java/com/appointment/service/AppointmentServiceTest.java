@@ -1,6 +1,7 @@
 package com.appointment.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
@@ -8,7 +9,11 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.appointment.domain.Appointment;
+import com.appointment.domain.AppointmentStatus;
 import com.appointment.domain.TimeSlot;
+import com.appointment.domain.User;
+import com.appointment.repository.AppointmentRepository;
 import com.appointment.repository.TimeSlotRepository;
 
 class AppointmentServiceTest {
@@ -54,5 +59,152 @@ class AppointmentServiceTest {
         List<TimeSlot> availableSlots = service.getAvailableSlots();
 
         assertTrue(availableSlots.isEmpty());
+    }
+
+    @Test
+    void shouldBookAppointmentWhenAllInputsAreValid() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+
+        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
+        User user = new User("Zeina");
+
+        timeSlotRepository.addTimeSlot(slot);
+
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        Appointment appointment = service.bookAppointment(user, slot, 60, 3);
+
+        assertEquals(user, appointment.getUser());
+        assertEquals(slot, appointment.getTimeSlot());
+        assertEquals(60, appointment.getDurationInMinutes());
+        assertEquals(3, appointment.getParticipantCount());
+        assertEquals(AppointmentStatus.CONFIRMED, appointment.getStatus());
+        assertTrue(slot.isBooked());
+        assertEquals(1, appointmentRepository.findAll().size());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenBookingWithoutAppointmentRepository() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
+        User user = new User("Zeina");
+
+        AppointmentService service = new AppointmentService(timeSlotRepository);
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> service.bookAppointment(user, slot, 60, 2));
+
+        assertEquals("AppointmentRepository is required for booking.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenUserIsNull() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
+
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.bookAppointment(null, slot, 60, 2));
+
+        assertEquals("User cannot be null.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenTimeSlotIsNull() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        User user = new User("Zeina");
+
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.bookAppointment(user, null, 60, 2));
+
+        assertEquals("Time slot cannot be null.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenTimeSlotIsAlreadyBooked() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+
+        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
+        slot.book();
+
+        User user = new User("Zeina");
+
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.bookAppointment(user, slot, 60, 2));
+
+        assertEquals("Time slot is already booked.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenDurationIsZero() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+
+        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
+        User user = new User("Zeina");
+
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.bookAppointment(user, slot, 0, 2));
+
+        assertEquals("Invalid duration. Maximum allowed duration is 120 minutes.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenDurationExceedsMaximum() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+
+        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
+        User user = new User("Zeina");
+
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.bookAppointment(user, slot, 121, 2));
+
+        assertEquals("Invalid duration. Maximum allowed duration is 120 minutes.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenParticipantCountIsZero() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+
+        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
+        User user = new User("Zeina");
+
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.bookAppointment(user, slot, 60, 0));
+
+        assertEquals("Invalid participant count. Maximum allowed participants is 5.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenParticipantCountExceedsMaximum() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+
+        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
+        User user = new User("Zeina");
+
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.bookAppointment(user, slot, 60, 6));
+
+        assertEquals("Invalid participant count. Maximum allowed participants is 5.", exception.getMessage());
     }
 }

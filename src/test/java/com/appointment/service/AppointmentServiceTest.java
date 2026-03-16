@@ -40,6 +40,160 @@ class AppointmentServiceTest {
         assertTrue(availableSlots.contains(slot1));
         assertTrue(availableSlots.contains(slot3));
     }
+    @Test
+    void shouldCancelFutureAppointment() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        User user = new User("Zeina");
+        TimeSlot slot = new TimeSlot(LocalDateTime.now().plusDays(1));
+        Appointment appointment = new Appointment(user, slot, 60, 2);
+
+        slot.book();
+        appointmentRepository.save(appointment);
+
+        service.cancelAppointment(appointment);
+
+        assertEquals(AppointmentStatus.CANCELLED, appointment.getStatus());
+        assertTrue(!slot.isBooked());
+    }
+
+    @Test
+    void shouldModifyFutureAppointment() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        User user = new User("Zeina");
+        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now().plusDays(1));
+        TimeSlot newSlot = new TimeSlot(LocalDateTime.now().plusDays(2));
+        Appointment appointment = new Appointment(user, oldSlot, 60, 2);
+
+        oldSlot.book();
+        appointmentRepository.save(appointment);
+
+        service.modifyAppointment(appointment, newSlot, 90, 3);
+
+        assertEquals(newSlot, appointment.getTimeSlot());
+        assertEquals(90, appointment.getDurationInMinutes());
+        assertEquals(3, appointment.getParticipantCount());
+        assertEquals(AppointmentStatus.CONFIRMED, appointment.getStatus());
+        assertTrue(!oldSlot.isBooked());
+        assertTrue(newSlot.isBooked());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenCancellingPastAppointment() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        User user = new User("Zeina");
+        TimeSlot slot = new TimeSlot(LocalDateTime.now().minusDays(1));
+        Appointment appointment = new Appointment(user, slot, 60, 2);
+
+        appointmentRepository.save(appointment);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.cancelAppointment(appointment));
+
+        assertEquals("Only future appointments can be modified or cancelled.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenAppointmentIsNullDuringCancellation() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.cancelAppointment(null));
+
+        assertEquals("Appointment cannot be null.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenAppointmentDoesNotExist() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        User user = new User("Zeina");
+        TimeSlot slot = new TimeSlot(LocalDateTime.now().plusDays(1));
+        Appointment appointment = new Appointment(user, slot, 60, 2);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.cancelAppointment(appointment));
+
+        assertEquals("Appointment does not exist.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenModifyingCancelledAppointment() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        User user = new User("Zeina");
+        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now().plusDays(1));
+        TimeSlot newSlot = new TimeSlot(LocalDateTime.now().plusDays(2));
+        Appointment appointment = new Appointment(user, oldSlot, 60, 2);
+
+        appointment.cancel();
+        appointmentRepository.save(appointment);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.modifyAppointment(appointment, newSlot, 90, 3));
+
+        assertEquals("Cancelled appointment cannot be modified or cancelled again.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenNewSlotIsNull() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        User user = new User("Zeina");
+        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now().plusDays(1));
+        Appointment appointment = new Appointment(user, oldSlot, 60, 2);
+
+        oldSlot.book();
+        appointmentRepository.save(appointment);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.modifyAppointment(appointment, null, 90, 3));
+
+        assertEquals("New time slot cannot be null.", exception.getMessage());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenNewSlotIsAlreadyBooked() {
+        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
+        AppointmentRepository appointmentRepository = new AppointmentRepository();
+        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+
+        User user = new User("Zeina");
+        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now().plusDays(1));
+        TimeSlot newSlot = new TimeSlot(LocalDateTime.now().plusDays(2));
+        Appointment appointment = new Appointment(user, oldSlot, 60, 2);
+
+        oldSlot.book();
+        newSlot.book();
+        appointmentRepository.save(appointment);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.modifyAppointment(appointment, newSlot, 90, 3));
+
+        assertEquals("New time slot is already booked.", exception.getMessage());
+    }
 
     @Test
     void shouldReturnEmptyListWhenAllSlotsAreBooked() {

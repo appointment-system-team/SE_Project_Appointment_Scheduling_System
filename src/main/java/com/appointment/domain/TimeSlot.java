@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 public class TimeSlot {
 
-    private LocalDateTime startTime;
+    private final LocalDateTime startTime;
     private boolean booked;
 
     public TimeSlot(LocalDateTime startTime) {
@@ -22,5 +22,9 @@ public class TimeSlot {
 
     public void book() {
         booked = true;
+    }
+
+    public void unbook() {
+        booked = false;
     }
 }

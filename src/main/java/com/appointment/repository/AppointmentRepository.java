@@ -16,4 +16,8 @@ public class AppointmentRepository {
     public List<Appointment> findAll() {
         return new ArrayList<>(appointments);
     }
+
+    public boolean contains(Appointment appointment) {
+        return appointments.contains(appointment);
+    }
 }

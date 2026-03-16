@@ -1,5 +1,6 @@
 package com.appointment.domain;
 
 public enum AppointmentStatus {
-	 CONFIRMED
+    CONFIRMED,
+    CANCELLED
 }

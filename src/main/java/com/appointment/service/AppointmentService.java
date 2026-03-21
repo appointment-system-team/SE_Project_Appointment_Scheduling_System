@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.appointment.domain.Appointment;
+import com.appointment.domain.AppointmentMode;
+import com.appointment.domain.AppointmentType;
 import com.appointment.domain.TimeSlot;
 import com.appointment.domain.User;
 import com.appointment.repository.AppointmentRepository;
@@ -15,12 +17,14 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final DurationRule durationRule;
     private final ParticipantLimitRule participantLimitRule;
+    private final AppointmentTypeRuleFactory appointmentTypeRuleFactory;
 
     public AppointmentService(TimeSlotRepository timeSlotRepository) {
         this.timeSlotRepository = timeSlotRepository;
         this.appointmentRepository = null;
         this.durationRule = new DurationRule();
         this.participantLimitRule = new ParticipantLimitRule();
+        this.appointmentTypeRuleFactory = new AppointmentTypeRuleFactory();
     }
 
     public AppointmentService(TimeSlotRepository timeSlotRepository, AppointmentRepository appointmentRepository) {
@@ -28,6 +32,7 @@ public class AppointmentService {
         this.appointmentRepository = appointmentRepository;
         this.durationRule = new DurationRule();
         this.participantLimitRule = new ParticipantLimitRule();
+        this.appointmentTypeRuleFactory = new AppointmentTypeRuleFactory();
     }
 
     public List<TimeSlot> getAvailableSlots() {
@@ -42,10 +47,24 @@ public class AppointmentService {
         return availableSlots;
     }
 
-    public Appointment bookAppointment(User user, TimeSlot timeSlot, int durationInMinutes, int participantCount) {
-        validateBookingRequest(user, timeSlot, durationInMinutes, participantCount);
+    public Appointment bookAppointment(User user, TimeSlot timeSlot, int durationInMinutes, int participantCount,
+            AppointmentType appointmentType, AppointmentMode appointmentMode) {
+        validateBookingRequest(user, timeSlot, durationInMinutes, participantCount, appointmentType, appointmentMode);
 
-        Appointment appointment = new Appointment(user, timeSlot, durationInMinutes, participantCount);
+        Appointment appointment = new Appointment(
+                user,
+                timeSlot,
+                durationInMinutes,
+                participantCount,
+                appointmentType,
+                appointmentMode);
+
+        AppointmentTypeRule appointmentTypeRule = appointmentTypeRuleFactory.getRule(appointmentType);
+
+        if (!appointmentTypeRule.isValid(appointment)) {
+            throw new IllegalArgumentException("Appointment does not satisfy the selected appointment type rule.");
+        }
+
         appointmentRepository.save(appointment);
         timeSlot.book();
 
@@ -60,7 +79,7 @@ public class AppointmentService {
     }
 
     public void modifyAppointment(Appointment appointment, TimeSlot newTimeSlot,
-                                  int newDurationInMinutes, int newParticipantCount) {
+            int newDurationInMinutes, int newParticipantCount) {
         validateAppointmentModificationRequest(appointment);
 
         if (newTimeSlot == null) {
@@ -88,7 +107,8 @@ public class AppointmentService {
         appointment.reschedule(newTimeSlot, newDurationInMinutes, newParticipantCount);
     }
 
-    private void validateBookingRequest(User user, TimeSlot timeSlot, int durationInMinutes, int participantCount) {
+    private void validateBookingRequest(User user, TimeSlot timeSlot, int durationInMinutes, int participantCount,
+            AppointmentType appointmentType, AppointmentMode appointmentMode) {
         if (appointmentRepository == null) {
             throw new IllegalStateException("AppointmentRepository is required for booking.");
         }
@@ -101,18 +121,28 @@ public class AppointmentService {
             throw new IllegalArgumentException("Time slot cannot be null.");
         }
 
+        if (appointmentType == null) {
+            throw new IllegalArgumentException("Appointment type cannot be null.");
+        }
+
+        if (appointmentMode == null) {
+            throw new IllegalArgumentException("Appointment mode cannot be null.");
+        }
+
         if (timeSlot.isBooked()) {
             throw new IllegalArgumentException("Time slot is already booked.");
         }
 
         if (!durationRule.isValid(durationInMinutes)) {
             throw new IllegalArgumentException(
-                    "Invalid duration. Maximum allowed duration is " + durationRule.getMaxDurationInMinutes() + " minutes.");
+                    "Invalid duration. Maximum allowed duration is "
+                            + durationRule.getMaxDurationInMinutes() + " minutes.");
         }
 
         if (!participantLimitRule.isValid(participantCount)) {
             throw new IllegalArgumentException(
-                    "Invalid participant count. Maximum allowed participants is " + participantLimitRule.getMaxParticipants() + ".");
+                    "Invalid participant count. Maximum allowed participants is "
+                            + participantLimitRule.getMaxParticipants() + ".");
         }
     }
 

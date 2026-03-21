@@ -9,13 +9,18 @@ public class Appointment {
     private int durationInMinutes;
     private int participantCount;
     private AppointmentStatus status;
+    private AppointmentType appointmentType;
+    private AppointmentMode appointmentMode;
 
-    public Appointment(User user, TimeSlot timeSlot, int durationInMinutes, int participantCount) {
+    public Appointment(User user, TimeSlot timeSlot, int durationInMinutes, int participantCount,
+            AppointmentType appointmentType, AppointmentMode appointmentMode) {
         this.user = user;
         this.timeSlot = timeSlot;
         this.durationInMinutes = durationInMinutes;
         this.participantCount = participantCount;
         this.status = AppointmentStatus.CONFIRMED;
+        this.appointmentType = appointmentType;
+        this.appointmentMode = appointmentMode;
     }
 
     public User getUser() {
@@ -36,6 +41,14 @@ public class Appointment {
 
     public AppointmentStatus getStatus() {
         return status;
+    }
+
+    public AppointmentType getAppointmentType() {
+        return appointmentType;
+    }
+
+    public AppointmentMode getAppointmentMode() {
+        return appointmentMode;
     }
 
     public boolean isFutureAppointment() {

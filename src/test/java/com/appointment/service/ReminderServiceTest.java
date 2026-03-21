@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
 import com.appointment.domain.Appointment;
+import com.appointment.domain.AppointmentMode;
+import com.appointment.domain.AppointmentType;
 import com.appointment.domain.TimeSlot;
 import com.appointment.domain.User;
 import com.appointment.repository.AppointmentRepository;
@@ -24,7 +26,13 @@ public class ReminderServiceTest {
                 new TimeSlot(LocalDateTime.now().plusHours(2));
 
         Appointment appointment =
-                new Appointment(user, slot, 30, 1);
+                new Appointment(
+                        user,
+                        slot,
+                        30,
+                        1,
+                        AppointmentType.FOLLOW_UP,
+                        AppointmentMode.VIRTUAL);
 
         repository.save(appointment);
 

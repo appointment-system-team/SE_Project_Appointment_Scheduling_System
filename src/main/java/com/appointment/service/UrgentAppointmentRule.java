@@ -2,7 +2,7 @@ package com.appointment.service;
 
 import com.appointment.domain.Appointment;
 
-public class UrgentAppointmentRule implements AppointmentTypeRule {
+public class UrgentAppointmentRule implements AppointmentPurposeRule {
 
     private static final int MAX_URGENT_DURATION = 30;
 

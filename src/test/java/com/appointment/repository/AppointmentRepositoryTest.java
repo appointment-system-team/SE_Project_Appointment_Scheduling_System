@@ -11,8 +11,9 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.appointment.domain.Appointment;
+import com.appointment.domain.AppointmentCategory;
 import com.appointment.domain.AppointmentMode;
-import com.appointment.domain.AppointmentType;
+import com.appointment.domain.AppointmentPurpose;
 import com.appointment.domain.TimeSlot;
 import com.appointment.domain.User;
 
@@ -27,7 +28,8 @@ class AppointmentRepositoryTest {
                 new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0)),
                 60,
                 2,
-                AppointmentType.ASSESSMENT,
+                AppointmentPurpose.ASSESSMENT,
+                AppointmentCategory.GROUP,
                 AppointmentMode.IN_PERSON);
 
         repository.save(appointment);
@@ -47,7 +49,8 @@ class AppointmentRepositoryTest {
                 new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0)),
                 60,
                 2,
-                AppointmentType.ASSESSMENT,
+                AppointmentPurpose.ASSESSMENT,
+                AppointmentCategory.GROUP,
                 AppointmentMode.IN_PERSON);
 
         repository.save(appointment);
@@ -71,7 +74,8 @@ class AppointmentRepositoryTest {
                 new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0)),
                 60,
                 2,
-                AppointmentType.ASSESSMENT,
+                AppointmentPurpose.ASSESSMENT,
+                AppointmentCategory.GROUP,
                 AppointmentMode.IN_PERSON);
 
         repository.save(appointment);
@@ -88,7 +92,8 @@ class AppointmentRepositoryTest {
                 new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0)),
                 60,
                 2,
-                AppointmentType.ASSESSMENT,
+                AppointmentPurpose.ASSESSMENT,
+                AppointmentCategory.GROUP,
                 AppointmentMode.IN_PERSON);
 
         assertFalse(repository.contains(appointment));

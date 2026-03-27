@@ -14,27 +14,27 @@ import com.appointment.domain.AppointmentPurpose;
 import com.appointment.domain.TimeSlot;
 import com.appointment.domain.User;
 
-class AssessmentAppointmentRuleTest {
+class GroupAppointmentRuleTest {
 
     @Test
-    void shouldReturnTrueWhenAssessmentAppointmentIsInPerson() {
-        AssessmentAppointmentRule rule = new AssessmentAppointmentRule();
+    void shouldReturnTrueWhenGroupAppointmentHasMoreThanOneParticipant() {
+        GroupAppointmentRule rule = new GroupAppointmentRule();
 
         Appointment appointment = new Appointment(
                 new User("Zeina"),
                 new TimeSlot(LocalDateTime.now().plusDays(1)),
                 60,
-                1,
+                3,
                 AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.INDIVIDUAL,
+                AppointmentCategory.GROUP,
                 AppointmentMode.IN_PERSON);
 
         assertTrue(rule.isValid(appointment));
     }
 
     @Test
-    void shouldReturnFalseWhenAssessmentAppointmentIsVirtual() {
-        AssessmentAppointmentRule rule = new AssessmentAppointmentRule();
+    void shouldReturnFalseWhenGroupAppointmentHasOnlyOneParticipant() {
+        GroupAppointmentRule rule = new GroupAppointmentRule();
 
         Appointment appointment = new Appointment(
                 new User("Zeina"),
@@ -42,8 +42,8 @@ class AssessmentAppointmentRuleTest {
                 60,
                 1,
                 AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.INDIVIDUAL,
-                AppointmentMode.VIRTUAL);
+                AppointmentCategory.GROUP,
+                AppointmentMode.IN_PERSON);
 
         assertFalse(rule.isValid(appointment));
     }

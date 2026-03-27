@@ -1,11 +1,12 @@
 package com.appointment.service;
 
 import com.appointment.domain.Appointment;
+import com.appointment.domain.AppointmentCategory;
 
-public class FollowUpAppointmentRule implements AppointmentTypeRule {
+public class FollowUpAppointmentRule implements AppointmentPurposeRule {
 
     @Override
     public boolean isValid(Appointment appointment) {
-        return appointment.getParticipantCount() == 1;
+        return appointment.getAppointmentCategory() == AppointmentCategory.INDIVIDUAL;
     }
 }

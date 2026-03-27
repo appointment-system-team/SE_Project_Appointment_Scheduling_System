@@ -1,5 +1,6 @@
 package com.appointment.domain;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 
 public class Appointment {
@@ -9,17 +10,26 @@ public class Appointment {
     private int durationInMinutes;
     private int participantCount;
     private AppointmentStatus status;
-    private AppointmentType appointmentType;
+    private AppointmentPurpose appointmentPurpose;
+    private AppointmentCategory appointmentCategory;
     private AppointmentMode appointmentMode;
 
-    public Appointment(User user, TimeSlot timeSlot, int durationInMinutes, int participantCount,
-            AppointmentType appointmentType, AppointmentMode appointmentMode) {
+    public Appointment(
+            User user,
+            TimeSlot timeSlot,
+            int durationInMinutes,
+            int participantCount,
+            AppointmentPurpose appointmentPurpose,
+            AppointmentCategory appointmentCategory,
+            AppointmentMode appointmentMode) {
+
         this.user = user;
         this.timeSlot = timeSlot;
         this.durationInMinutes = durationInMinutes;
         this.participantCount = participantCount;
         this.status = AppointmentStatus.CONFIRMED;
-        this.appointmentType = appointmentType;
+        this.appointmentPurpose = appointmentPurpose;
+        this.appointmentCategory = appointmentCategory;
         this.appointmentMode = appointmentMode;
     }
 
@@ -43,8 +53,12 @@ public class Appointment {
         return status;
     }
 
-    public AppointmentType getAppointmentType() {
-        return appointmentType;
+    public AppointmentPurpose getAppointmentPurpose() {
+        return appointmentPurpose;
+    }
+
+    public AppointmentCategory getAppointmentCategory() {
+        return appointmentCategory;
     }
 
     public AppointmentMode getAppointmentMode() {
@@ -52,7 +66,11 @@ public class Appointment {
     }
 
     public boolean isFutureAppointment() {
-        return timeSlot.getStartTime().isAfter(LocalDateTime.now());
+        return isFutureAppointment(Clock.systemDefaultZone());
+    }
+
+    public boolean isFutureAppointment(Clock clock) {
+        return timeSlot.getStartTime().isAfter(LocalDateTime.now(clock));
     }
 
     public boolean isCancelled() {

@@ -73,6 +73,15 @@ public class Appointment {
         return timeSlot.getStartTime().isAfter(LocalDateTime.now(clock));
     }
 
+    public LocalDateTime getEndTime() {
+        return timeSlot.getStartTime().plusMinutes(durationInMinutes);
+    }
+
+    public boolean overlapsWith(Appointment other) {
+        return this.timeSlot.getStartTime().isBefore(other.getEndTime())
+                && this.getEndTime().isAfter(other.getTimeSlot().getStartTime());
+    }
+
     public boolean isCancelled() {
         return status == AppointmentStatus.CANCELLED;
     }

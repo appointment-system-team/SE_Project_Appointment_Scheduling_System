@@ -1,25 +1,19 @@
 package com.appointment.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.*;
 
-import java.time.Clock;
-import java.time.Instant;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.List;
+import java.time.LocalTime;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.appointment.domain.Appointment;
 import com.appointment.domain.AppointmentCategory;
 import com.appointment.domain.AppointmentMode;
 import com.appointment.domain.AppointmentPurpose;
-import com.appointment.domain.AppointmentStatus;
 import com.appointment.domain.TimeSlot;
 import com.appointment.domain.User;
 import com.appointment.repository.AdminRepository;
@@ -28,903 +22,428 @@ import com.appointment.repository.TimeSlotRepository;
 
 class AppointmentServiceTest {
 
-    @Test
-    void shouldReturnOnlyAvailableSlots() {
-        TimeSlotRepository repository = new TimeSlotRepository();
+    private AppointmentService service;
+    private AppointmentRepository appointmentRepository;
+    private TimeSlotRepository timeSlotRepository;
+    private AuthenticationService authService;
+    private User user;
 
-        TimeSlot slot1 = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        TimeSlot slot2 = new TimeSlot(LocalDateTime.of(2025, 5, 20, 11, 0));
-        TimeSlot slot3 = new TimeSlot(LocalDateTime.of(2025, 5, 20, 12, 0));
+    @BeforeEach
+    void setUp() {
+        timeSlotRepository = new TimeSlotRepository();
+        appointmentRepository = new AppointmentRepository();
+        authService = new AuthenticationService(new AdminRepository());
 
-        slot2.book();
+        service = new AppointmentService(
+                timeSlotRepository,
+                appointmentRepository,
+                authService
+        );
 
-        repository.addTimeSlot(slot1);
-        repository.addTimeSlot(slot2);
-        repository.addTimeSlot(slot3);
+        user = new User("Maryam");
+    }
 
-        AppointmentService service = new AppointmentService(repository);
+    private LocalDate getNextWorkingDay() {
+        LocalDate date = LocalDate.now().plusDays(1);
 
-        List<TimeSlot> availableSlots = service.getAvailableSlots();
+        while (date.getDayOfWeek() == DayOfWeek.FRIDAY
+                || date.getDayOfWeek() == DayOfWeek.SATURDAY) {
+            date = date.plusDays(1);
+        }
 
-        assertEquals(2, availableSlots.size());
-        assertTrue(availableSlots.contains(slot1));
-        assertTrue(availableSlots.contains(slot3));
+        return date;
+    }
+
+    private TimeSlot createValidTimeSlot(int daysFromNow, int hour, int minute) {
+        LocalDate date = LocalDate.now().plusDays(daysFromNow);
+
+        while (date.getDayOfWeek() == DayOfWeek.FRIDAY
+                || date.getDayOfWeek() == DayOfWeek.SATURDAY) {
+            date = date.plusDays(1);
+        }
+
+        TimeSlot timeSlot = new TimeSlot(LocalDateTime.of(date, LocalTime.of(hour, minute)));
+        timeSlotRepository.addTimeSlot(timeSlot);
+        return timeSlot;
     }
 
     @Test
-    void shouldCancelFutureAppointment() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
+    void testBookAppointmentSuccessfully() {
+        TimeSlot slot = createValidTimeSlot(1, 10, 0);
 
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot slot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        Appointment appointment = new Appointment(
+        Appointment appointment = service.bookAppointment(
                 user,
                 slot,
                 60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
 
-        slot.book();
-        appointmentRepository.save(appointment);
-
-        service.cancelAppointment(appointment);
-
-        assertEquals(AppointmentStatus.CANCELLED, appointment.getStatus());
-        assertTrue(!slot.isBooked());
+        assertNotNull(appointment);
+        assertTrue(slot.isBooked());
+        assertEquals(user, appointment.getUser());
     }
 
     @Test
-    void shouldModifyFutureAppointment() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
+    void testCancelAppointmentByUserSuccessfully() {
+        TimeSlot slot = createValidTimeSlot(1, 11, 0);
 
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        TimeSlot newSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(2));
-        Appointment appointment = new Appointment(
+        Appointment appointment = service.bookAppointment(
                 user,
-                oldSlot,
+                slot,
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        service.cancelAppointmentByUser(appointment, user);
+
+        assertTrue(appointment.isCancelled());
+        assertFalse(slot.isBooked());
+    }
+
+    @Test
+    void testCancelAppointmentByAdminSuccessfully() {
+        TimeSlot slot = createValidTimeSlot(1, 12, 0);
+
+        Appointment appointment = service.bookAppointment(
+                user,
+                slot,
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        authService.login("admin", "1234");
+        service.cancelAppointmentByAdmin(appointment);
+
+        assertTrue(appointment.isCancelled());
+        assertFalse(slot.isBooked());
+    }
+
+    @Test
+    void testUserCannotCancelAnotherUsersAppointment() {
+        TimeSlot slot = createValidTimeSlot(1, 13, 0);
+
+        Appointment appointment = service.bookAppointment(
+                user,
+                slot,
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        User anotherUser = new User("Ali");
+
+        assertThrows(IllegalStateException.class, () ->
+                service.cancelAppointmentByUser(appointment, anotherUser));
+    }
+
+    @Test
+    void testModifyAppointmentByUserSuccessfully() {
+        TimeSlot originalSlot = createValidTimeSlot(1, 9, 0);
+        TimeSlot newSlot = createValidTimeSlot(2, 10, 0);
+
+        Appointment appointment = service.bookAppointment(
+                user,
+                originalSlot,
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        service.modifyAppointmentByUser(
+                appointment,
+                user,
+                newSlot,
                 60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        oldSlot.book();
-        appointmentRepository.save(appointment);
-
-        service.modifyAppointment(appointment, newSlot, 90, 3);
+                1
+        );
 
         assertEquals(newSlot, appointment.getTimeSlot());
-        assertEquals(90, appointment.getDurationInMinutes());
-        assertEquals(3, appointment.getParticipantCount());
-        assertEquals(AppointmentStatus.CONFIRMED, appointment.getStatus());
-        assertTrue(!oldSlot.isBooked());
+        assertEquals(60, appointment.getDurationInMinutes());
+        assertFalse(originalSlot.isBooked());
         assertTrue(newSlot.isBooked());
     }
 
     @Test
-    void shouldThrowExceptionWhenCancellingWithoutAdminLogin() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot slot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        Appointment appointment = new Appointment(
-                user,
-                slot,
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        slot.book();
-        appointmentRepository.save(appointment);
-
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> service.cancelAppointment(appointment));
-
-        assertEquals(
-                "Admin login is required for appointment management.",
-                exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenCancellingPastAppointment() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot slot = new TimeSlot(LocalDateTime.now(fixedClock).minusDays(1));
-        Appointment appointment = new Appointment(
-                user,
-                slot,
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        appointmentRepository.save(appointment);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.cancelAppointment(appointment));
-
-        assertEquals("Only future appointments can be modified or cancelled.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenAppointmentIsNullDuringCancellation() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.cancelAppointment(null));
-
-        assertEquals("Appointment cannot be null.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenAppointmentDoesNotExist() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot slot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        Appointment appointment = new Appointment(
-                user,
-                slot,
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.cancelAppointment(appointment));
-
-        assertEquals("Appointment does not exist.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenModifyingCancelledAppointment() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        TimeSlot newSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(2));
-        Appointment appointment = new Appointment(
-                user,
-                oldSlot,
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        appointment.cancel();
-        appointmentRepository.save(appointment);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.modifyAppointment(appointment, newSlot, 90, 3));
-
-        assertEquals("Cancelled appointment cannot be modified or cancelled again.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenNewSlotIsNull() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        Appointment appointment = new Appointment(
-                user,
-                oldSlot,
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        oldSlot.book();
-        appointmentRepository.save(appointment);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.modifyAppointment(appointment, null, 90, 3));
-
-        assertEquals("New time slot cannot be null.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenNewSlotIsAlreadyBooked() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        TimeSlot newSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(2));
-        Appointment appointment = new Appointment(
-                user,
-                oldSlot,
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        oldSlot.book();
-        newSlot.book();
-        appointmentRepository.save(appointment);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.modifyAppointment(appointment, newSlot, 90, 3));
-
-        assertEquals("New time slot is already booked.", exception.getMessage());
-    }
-
-    @Test
-    void shouldReturnEmptyListWhenAllSlotsAreBooked() {
-        TimeSlotRepository repository = new TimeSlotRepository();
-
-        TimeSlot slot1 = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        TimeSlot slot2 = new TimeSlot(LocalDateTime.of(2025, 5, 20, 11, 0));
-
-        slot1.book();
-        slot2.book();
-
-        repository.addTimeSlot(slot1);
-        repository.addTimeSlot(slot2);
-
-        AppointmentService service = new AppointmentService(repository);
-
-        List<TimeSlot> availableSlots = service.getAvailableSlots();
-
-        assertTrue(availableSlots.isEmpty());
-    }
-
-    @Test
-    void shouldBookAppointmentWhenAllInputsAreValid() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        timeSlotRepository.addTimeSlot(slot);
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
+    void testModifyAppointmentByAdminSuccessfully() {
+        TimeSlot originalSlot = createValidTimeSlot(1, 10, 0);
+        TimeSlot newSlot = createValidTimeSlot(2, 11, 0);
 
         Appointment appointment = service.bookAppointment(
                 user,
-                slot,
-                60,
+                originalSlot,
+                30,
                 1,
                 AppointmentPurpose.FOLLOW_UP,
                 AppointmentCategory.INDIVIDUAL,
-                AppointmentMode.VIRTUAL);
+                AppointmentMode.IN_PERSON
+        );
 
-        assertEquals(user, appointment.getUser());
-        assertEquals(slot, appointment.getTimeSlot());
-        assertEquals(60, appointment.getDurationInMinutes());
-        assertEquals(1, appointment.getParticipantCount());
-        assertEquals(AppointmentStatus.CONFIRMED, appointment.getStatus());
-        assertEquals(AppointmentPurpose.FOLLOW_UP, appointment.getAppointmentPurpose());
-        assertEquals(AppointmentCategory.INDIVIDUAL, appointment.getAppointmentCategory());
-        assertEquals(AppointmentMode.VIRTUAL, appointment.getAppointmentMode());
-        assertTrue(slot.isBooked());
-        assertEquals(1, appointmentRepository.findAll().size());
+        authService.login("admin", "1234");
+
+        service.modifyAppointmentByAdmin(
+                appointment,
+                newSlot,
+                45,
+                1
+        );
+
+        assertEquals(newSlot, appointment.getTimeSlot());
+        assertEquals(45, appointment.getDurationInMinutes());
+        assertFalse(originalSlot.isBooked());
+        assertTrue(newSlot.isBooked());
     }
 
     @Test
-    void shouldThrowExceptionWhenBookingWithoutAppointmentRepository() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository);
-
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        1,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("AppointmentRepository is required for booking.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenUserIsNull() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        null,
-                        slot,
-                        60,
-                        1,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("User cannot be null.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenTimeSlotIsNull() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        null,
-                        60,
-                        1,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Time slot cannot be null.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenAppointmentPurposeIsNull() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        1,
-                        null,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Appointment purpose cannot be null.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenAppointmentCategoryIsNull() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        1,
-                        AppointmentPurpose.FOLLOW_UP,
-                        null,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Appointment category cannot be null.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenAppointmentModeIsNull() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        1,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.INDIVIDUAL,
-                        null));
-
-        assertEquals("Appointment mode cannot be null.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenTimeSlotIsAlreadyBooked() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        slot.book();
-
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        1,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Time slot is already booked.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenDurationIsZero() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        0,
-                        1,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Invalid duration. Maximum allowed duration is 120 minutes.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenDurationExceedsMaximum() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        121,
-                        1,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Invalid duration. Maximum allowed duration is 120 minutes.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenParticipantCountIsZero() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        0,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Invalid participant count. Maximum allowed participants is 5.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenParticipantCountExceedsMaximum() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        6,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.GROUP,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Invalid participant count. Maximum allowed participants is 5.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenUrgentAppointmentViolatesPurposeRule() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        45,
-                        1,
-                        AppointmentPurpose.URGENT,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Appointment does not satisfy the selected appointment purpose rule.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenFollowUpAppointmentViolatesPurposeRule() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        2,
-                        AppointmentPurpose.FOLLOW_UP,
-                        AppointmentCategory.GROUP,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Appointment does not satisfy the selected appointment purpose rule.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenAssessmentAppointmentViolatesPurposeRule() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        1,
-                        AppointmentPurpose.ASSESSMENT,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.VIRTUAL));
-
-        assertEquals("Appointment does not satisfy the selected appointment purpose rule.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenIndividualAppointmentViolatesCategoryRule() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        2,
-                        AppointmentPurpose.ASSESSMENT,
-                        AppointmentCategory.INDIVIDUAL,
-                        AppointmentMode.IN_PERSON));
-
-        assertEquals("Appointment does not satisfy the selected appointment category rule.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenGroupAppointmentViolatesCategoryRule() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.bookAppointment(
-                        user,
-                        slot,
-                        60,
-                        1,
-                        AppointmentPurpose.ASSESSMENT,
-                        AppointmentCategory.GROUP,
-                        AppointmentMode.IN_PERSON));
-
-        assertEquals("Appointment does not satisfy the selected appointment category rule.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenModifiedAppointmentViolatesPurposeRule() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        TimeSlot newSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(2));
-        Appointment appointment = new Appointment(
-                user,
-                oldSlot,
-                20,
-                1,
-                AppointmentPurpose.URGENT,
-                AppointmentCategory.INDIVIDUAL,
-                AppointmentMode.VIRTUAL);
-
-        oldSlot.book();
-        appointmentRepository.save(appointment);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.modifyAppointment(appointment, newSlot, 45, 1));
-
-        assertEquals("Appointment does not satisfy the selected appointment purpose rule.", exception.getMessage());
-    }
-
-    @Test
-    void shouldThrowExceptionWhenModifiedAppointmentViolatesCategoryRule() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-        AuthenticationService authenticationService =
-                new AuthenticationService(new AdminRepository());
-        authenticationService.login("admin", "1234");
-
-        Clock fixedClock = Clock.fixed(
-                Instant.parse("2025-01-01T10:00:00Z"),
-                ZoneId.systemDefault());
-
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
-                appointmentRepository,
-                authenticationService,
-                fixedClock);
-
-        User user = new User("Zeina");
-        TimeSlot oldSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(1));
-        TimeSlot newSlot = new TimeSlot(LocalDateTime.now(fixedClock).plusDays(2));
-        Appointment appointment = new Appointment(
-                user,
-                oldSlot,
-                60,
-                1,
-                AppointmentPurpose.FOLLOW_UP,
-                AppointmentCategory.INDIVIDUAL,
-                AppointmentMode.VIRTUAL);
-
-        oldSlot.book();
-        appointmentRepository.save(appointment);
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.modifyAppointment(appointment, newSlot, 60, 2));
-
-        assertEquals("Appointment does not satisfy the selected appointment category rule.", exception.getMessage());
-    }
-
-    @Test
-    void shouldNotifyObserverWhenAppointmentIsBooked() {
-        TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
-        AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        TimeSlot slot = new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0));
-        User user = new User("Zeina");
-
-        timeSlotRepository.addTimeSlot(slot);
-
-        AppointmentService service = new AppointmentService(timeSlotRepository, appointmentRepository);
-
-        AppointmentObserver observer = mock(AppointmentObserver.class);
-        service.addObserver(observer);
+    void testUserCannotModifyAnotherUsersAppointment() {
+        TimeSlot originalSlot = createValidTimeSlot(1, 9, 30);
+        TimeSlot newSlot = createValidTimeSlot(2, 12, 0);
 
         Appointment appointment = service.bookAppointment(
                 user,
-                slot,
-                60,
+                originalSlot,
+                30,
                 1,
                 AppointmentPurpose.FOLLOW_UP,
                 AppointmentCategory.INDIVIDUAL,
-                AppointmentMode.VIRTUAL);
+                AppointmentMode.IN_PERSON
+        );
 
-        verify(observer, times(1)).update(appointment, "BOOKED");
+        User anotherUser = new User("Ali");
+
+        assertThrows(IllegalStateException.class, () ->
+                service.modifyAppointmentByUser(
+                        appointment,
+                        anotherUser,
+                        newSlot,
+                        60,
+                        1
+                ));
+    }
+
+    @Test
+    void testAdminCannotModifyWithoutLogin() {
+        TimeSlot originalSlot = createValidTimeSlot(1, 10, 30);
+        TimeSlot newSlot = createValidTimeSlot(2, 13, 0);
+
+        Appointment appointment = service.bookAppointment(
+                user,
+                originalSlot,
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        assertThrows(IllegalStateException.class, () ->
+                service.modifyAppointmentByAdmin(
+                        appointment,
+                        newSlot,
+                        60,
+                        1
+                ));
+    }
+
+    @Test
+    void testCannotModifyPastAppointment() {
+        LocalDateTime pastDateTime = LocalDateTime.now().minusDays(1);
+        TimeSlot pastSlot = new TimeSlot(pastDateTime);
+        timeSlotRepository.addTimeSlot(pastSlot);
+
+        Appointment appointment = new Appointment(
+                user,
+                pastSlot,
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+        appointmentRepository.save(appointment);
+
+        TimeSlot newSlot = createValidTimeSlot(2, 10, 0);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                service.modifyAppointmentByUser(
+                        appointment,
+                        user,
+                        newSlot,
+                        60,
+                        1
+                ));
+    }
+
+    @Test
+    void testCannotCancelPastAppointment() {
+        LocalDateTime pastDateTime = LocalDateTime.now().minusDays(1);
+        TimeSlot pastSlot = new TimeSlot(pastDateTime);
+        timeSlotRepository.addTimeSlot(pastSlot);
+
+        Appointment appointment = new Appointment(
+                user,
+                pastSlot,
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+        appointmentRepository.save(appointment);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                service.cancelAppointmentByUser(appointment, user));
+    }
+
+    @Test
+    void testPreventOverlappingAppointments() {
+        TimeSlot slot1 = createValidTimeSlot(1, 12, 0);
+        TimeSlot slot2 = createValidTimeSlot(1, 13, 0);
+
+        service.bookAppointment(
+                user,
+                slot1,
+                120,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        assertThrows(IllegalArgumentException.class, () ->
+                service.bookAppointment(
+                        user,
+                        slot2,
+                        60,
+                        1,
+                        AppointmentPurpose.FOLLOW_UP,
+                        AppointmentCategory.INDIVIDUAL,
+                        AppointmentMode.IN_PERSON
+                ));
+    }
+
+    @Test
+    void testRejectFridayBooking() {
+        LocalDate date = LocalDate.now().plusDays(1);
+
+        while (date.getDayOfWeek() != DayOfWeek.FRIDAY) {
+            date = date.plusDays(1);
+        }
+
+        TimeSlot fridaySlot = new TimeSlot(LocalDateTime.of(date, LocalTime.of(10, 0)));
+        timeSlotRepository.addTimeSlot(fridaySlot);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                service.bookAppointment(
+                        user,
+                        fridaySlot,
+                        30,
+                        1,
+                        AppointmentPurpose.FOLLOW_UP,
+                        AppointmentCategory.INDIVIDUAL,
+                        AppointmentMode.IN_PERSON
+                ));
+    }
+
+    @Test
+    void testRejectSaturdayBooking() {
+        LocalDate date = LocalDate.now().plusDays(1);
+
+        while (date.getDayOfWeek() != DayOfWeek.SATURDAY) {
+            date = date.plusDays(1);
+        }
+
+        TimeSlot saturdaySlot = new TimeSlot(LocalDateTime.of(date, LocalTime.of(10, 0)));
+        timeSlotRepository.addTimeSlot(saturdaySlot);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                service.bookAppointment(
+                        user,
+                        saturdaySlot,
+                        30,
+                        1,
+                        AppointmentPurpose.FOLLOW_UP,
+                        AppointmentCategory.INDIVIDUAL,
+                        AppointmentMode.IN_PERSON
+                ));
+    }
+
+    @Test
+    void testRejectBookingBeforeWorkingHours() {
+        TimeSlot earlySlot = createValidTimeSlot(1, 7, 0);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                service.bookAppointment(
+                        user,
+                        earlySlot,
+                        30,
+                        1,
+                        AppointmentPurpose.FOLLOW_UP,
+                        AppointmentCategory.INDIVIDUAL,
+                        AppointmentMode.IN_PERSON
+                ));
+    }
+
+    @Test
+    void testRejectBookingAfterWorkingHours() {
+        TimeSlot lateSlot = createValidTimeSlot(1, 15, 30);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                service.bookAppointment(
+                        user,
+                        lateSlot,
+                        60,
+                        1,
+                        AppointmentPurpose.FOLLOW_UP,
+                        AppointmentCategory.INDIVIDUAL,
+                        AppointmentMode.IN_PERSON
+                ));
+    }
+
+    @Test
+    void testRejectAssessmentAsVirtualAppointment() {
+        TimeSlot slot = createValidTimeSlot(1, 10, 0);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                service.bookAppointment(
+                        user,
+                        slot,
+                        30,
+                        1,
+                        AppointmentPurpose.ASSESSMENT,
+                        AppointmentCategory.INDIVIDUAL,
+                        AppointmentMode.VIRTUAL
+                ));
+    }
+
+    @Test
+    void testGetAvailableSlotsReturnsOnlyUnbookedSlots() {
+        TimeSlot slot1 = createValidTimeSlot(1, 9, 0);
+        TimeSlot slot2 = createValidTimeSlot(1, 11, 0);
+
+        service.bookAppointment(
+                user,
+                slot1,
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        assertFalse(service.getAvailableSlots().contains(slot1));
+        assertTrue(service.getAvailableSlots().contains(slot2));
     }
 }

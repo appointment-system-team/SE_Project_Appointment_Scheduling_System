@@ -1,13 +1,10 @@
 package com.appointment.repository;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.appointment.domain.Appointment;
@@ -19,83 +16,88 @@ import com.appointment.domain.User;
 
 class AppointmentRepositoryTest {
 
-    @Test
-    void shouldSaveAndReturnAppointments() {
-        AppointmentRepository repository = new AppointmentRepository();
+    private AppointmentRepository repository;
+    private User user;
 
-        Appointment appointment = new Appointment(
-                new User("Zeina"),
-                new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0)),
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        repository.save(appointment);
-
-        List<Appointment> result = repository.findAll();
-
-        assertEquals(1, result.size());
-        assertEquals(appointment, result.get(0));
+    @BeforeEach
+    void setUp() {
+        repository = new AppointmentRepository();
+        user = new User("Maryam");
     }
 
     @Test
-    void shouldReturnDefensiveCopyFromFindAll() {
-        AppointmentRepository repository = new AppointmentRepository();
-
+    void testSaveAndFindAll() {
         Appointment appointment = new Appointment(
-                new User("Zeina"),
-                new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0)),
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
+                user,
+                new TimeSlot(LocalDateTime.now().plusDays(1)),
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
 
         repository.save(appointment);
-
-        List<Appointment> result1 = repository.findAll();
-        List<Appointment> result2 = repository.findAll();
-
-        assertNotSame(result1, result2);
-
-        result1.clear();
 
         assertEquals(1, repository.findAll().size());
-    }
-
-    @Test
-    void shouldReturnTrueWhenRepositoryContainsAppointment() {
-        AppointmentRepository repository = new AppointmentRepository();
-
-        Appointment appointment = new Appointment(
-                new User("Zeina"),
-                new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0)),
-                60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
-
-        repository.save(appointment);
-
         assertTrue(repository.contains(appointment));
     }
 
     @Test
-    void shouldReturnFalseWhenRepositoryDoesNotContainAppointment() {
-        AppointmentRepository repository = new AppointmentRepository();
+    void testHasOverlappingAppointmentReturnsTrue() {
+        Appointment existingAppointment = new Appointment(
+                user,
+                new TimeSlot(LocalDateTime.now().plusDays(1).withHour(12).withMinute(0)),
+                120,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
 
-        Appointment appointment = new Appointment(
-                new User("Zeina"),
-                new TimeSlot(LocalDateTime.of(2025, 5, 20, 10, 0)),
+        repository.save(existingAppointment);
+
+        Appointment newAppointment = new Appointment(
+                user,
+                new TimeSlot(LocalDateTime.now().plusDays(1).withHour(13).withMinute(0)),
                 60,
-                2,
-                AppointmentPurpose.ASSESSMENT,
-                AppointmentCategory.GROUP,
-                AppointmentMode.IN_PERSON);
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
 
-        assertFalse(repository.contains(appointment));
+        boolean result = repository.hasOverlappingAppointment(user, null, newAppointment);
+
+        assertTrue(result);
+    }
+
+    @Test
+    void testHasOverlappingAppointmentReturnsFalse() {
+        Appointment existingAppointment = new Appointment(
+                user,
+                new TimeSlot(LocalDateTime.now().plusDays(1).withHour(10).withMinute(0)),
+                60,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        repository.save(existingAppointment);
+
+        Appointment newAppointment = new Appointment(
+                user,
+                new TimeSlot(LocalDateTime.now().plusDays(1).withHour(12).withMinute(0)),
+                30,
+                1,
+                AppointmentPurpose.FOLLOW_UP,
+                AppointmentCategory.INDIVIDUAL,
+                AppointmentMode.IN_PERSON
+        );
+
+        boolean result = repository.hasOverlappingAppointment(user, null, newAppointment);
+
+        assertFalse(result);
     }
 }

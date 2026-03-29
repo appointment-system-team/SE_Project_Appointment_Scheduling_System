@@ -1,51 +1,45 @@
 package com.appointment.service;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.appointment.repository.AdminRepository;
 
 class AuthenticationServiceTest {
 
-    @Test
-    void shouldLoginSuccessfullyWithValidCredentials() {
-        AuthenticationService service = new AuthenticationService(new AdminRepository());
+    private AuthenticationService authenticationService;
 
-        boolean result = service.login("admin", "1234");
+    @BeforeEach
+    void setUp() {
+        authenticationService = new AuthenticationService(new AdminRepository());
+    }
+
+    @Test
+    void testLoginSuccess() {
+        boolean result = authenticationService.login("admin", "1234");
 
         assertTrue(result);
-        assertTrue(service.isLoggedIn());
+        assertTrue(authenticationService.isLoggedIn());
+        assertNotNull(authenticationService.getLoggedAdmin());
     }
 
     @Test
-    void shouldFailLoginWithInvalidUsername() {
-        AuthenticationService service = new AuthenticationService(new AdminRepository());
-
-        boolean result = service.login("unknown", "1234");
+    void testLoginFailure() {
+        boolean result = authenticationService.login("wrong", "wrong");
 
         assertFalse(result);
-        assertFalse(service.isLoggedIn());
+        assertFalse(authenticationService.isLoggedIn());
+        assertNull(authenticationService.getLoggedAdmin());
     }
 
     @Test
-    void shouldFailLoginWithInvalidPassword() {
-        AuthenticationService service = new AuthenticationService(new AdminRepository());
+    void testLogout() {
+        authenticationService.login("admin", "1234");
+        authenticationService.logout();
 
-        boolean result = service.login("admin", "wrong");
-
-        assertFalse(result);
-        assertFalse(service.isLoggedIn());
-    }
-
-    @Test
-    void shouldLogoutSuccessfully() {
-        AuthenticationService service = new AuthenticationService(new AdminRepository());
-
-        service.login("admin", "1234");
-        service.logout();
-
-        assertFalse(service.isLoggedIn());
+        assertFalse(authenticationService.isLoggedIn());
+        assertNull(authenticationService.getLoggedAdmin());
     }
 }

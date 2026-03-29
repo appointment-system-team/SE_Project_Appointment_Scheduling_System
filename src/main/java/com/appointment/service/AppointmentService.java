@@ -1,6 +1,7 @@
 package com.appointment.service;
 
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,6 +20,12 @@ public class AppointmentService {
             "Appointment does not satisfy the selected appointment purpose rule.";
     private static final String CATEGORY_RULE_VIOLATION_MESSAGE =
             "Appointment does not satisfy the selected appointment category rule.";
+    private static final String MODE_RULE_VIOLATION_MESSAGE =
+            "Appointment does not satisfy the selected appointment mode rule.";
+    private static final String WORKING_HOURS_RULE_VIOLATION_MESSAGE =
+            "Appointment must be within working hours (8:00 AM - 4:00 PM).";
+    private static final String WORKING_DAYS_RULE_VIOLATION_MESSAGE =
+            "Appointments are not allowed on Friday or Saturday.";
     private static final String APPOINTMENT_REPOSITORY_REQUIRED_FOR_BOOKING_MESSAGE =
             "AppointmentRepository is required for booking.";
     private static final String APPOINTMENT_REPOSITORY_REQUIRED_FOR_MANAGEMENT_MESSAGE =
@@ -32,6 +39,9 @@ public class AppointmentService {
     private final ParticipantLimitRule participantLimitRule;
     private final AppointmentPurposeRuleFactory appointmentPurposeRuleFactory;
     private final AppointmentCategoryRuleFactory appointmentCategoryRuleFactory;
+    private final AppointmentModeRuleFactory appointmentModeRuleFactory;
+    private final WorkingHoursRule workingHoursRule;
+    private final WorkingDaysRule workingDaysRule;
     private final AuthenticationService authenticationService;
     private final Clock clock;
     private final List<AppointmentObserver> observers;
@@ -65,6 +75,9 @@ public class AppointmentService {
         this.participantLimitRule = new ParticipantLimitRule();
         this.appointmentPurposeRuleFactory = new AppointmentPurposeRuleFactory();
         this.appointmentCategoryRuleFactory = new AppointmentCategoryRuleFactory();
+        this.appointmentModeRuleFactory = new AppointmentModeRuleFactory();
+        this.workingHoursRule = new WorkingHoursRule();
+        this.workingDaysRule = new WorkingDaysRule();
         this.observers = new ArrayList<>();
     }
 
@@ -118,6 +131,7 @@ public class AppointmentService {
                 appointmentMode);
 
         validateAppointmentRules(appointment);
+        validateUserHasNoTimeConflict(user, null, appointment);
 
         appointmentRepository.save(appointment);
         timeSlot.book();
@@ -126,7 +140,23 @@ public class AppointmentService {
         return appointment;
     }
 
-    public void cancelAppointment(Appointment appointment) {
+    public void cancelAppointmentByUser(Appointment appointment, User user) {
+        validateAppointmentModificationRequest(appointment);
+
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null.");
+        }
+
+        if (!appointment.getUser().equals(user)) {
+            throw new IllegalStateException("User can only cancel their own appointment.");
+        }
+
+        appointment.cancel();
+        appointment.getTimeSlot().unbook();
+        notifyObservers(appointment, "CANCELLED");
+    }
+
+    public void cancelAppointmentByAdmin(Appointment appointment) {
         validateAdminAccess();
         validateAppointmentModificationRequest(appointment);
 
@@ -135,7 +165,27 @@ public class AppointmentService {
         notifyObservers(appointment, "CANCELLED");
     }
 
-    public void modifyAppointment(
+    public void modifyAppointmentByUser(
+            Appointment appointment,
+            User user,
+            TimeSlot newTimeSlot,
+            int newDurationInMinutes,
+            int newParticipantCount) {
+
+        validateAppointmentModificationRequest(appointment);
+
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null.");
+        }
+
+        if (!appointment.getUser().equals(user)) {
+            throw new IllegalStateException("User can only modify their own appointment.");
+        }
+
+        modifyAppointmentInternal(appointment, newTimeSlot, newDurationInMinutes, newParticipantCount);
+    }
+
+    public void modifyAppointmentByAdmin(
             Appointment appointment,
             TimeSlot newTimeSlot,
             int newDurationInMinutes,
@@ -143,7 +193,17 @@ public class AppointmentService {
 
         validateAdminAccess();
         validateAppointmentModificationRequest(appointment);
-        validateNewTimeSlot(newTimeSlot);
+
+        modifyAppointmentInternal(appointment, newTimeSlot, newDurationInMinutes, newParticipantCount);
+    }
+
+    private void modifyAppointmentInternal(
+            Appointment appointment,
+            TimeSlot newTimeSlot,
+            int newDurationInMinutes,
+            int newParticipantCount) {
+
+        validateNewTimeSlotForModification(appointment, newTimeSlot);
         validateDuration(newDurationInMinutes);
         validateParticipantCount(newParticipantCount);
 
@@ -157,9 +217,13 @@ public class AppointmentService {
                 appointment.getAppointmentMode());
 
         validateAppointmentRules(updatedAppointment);
+        validateUserHasNoTimeConflict(appointment.getUser(), appointment, updatedAppointment);
 
-        appointment.getTimeSlot().unbook();
-        newTimeSlot.book();
+        if (appointment.getTimeSlot() != newTimeSlot) {
+            appointment.getTimeSlot().unbook();
+            newTimeSlot.book();
+        }
+
         appointment.reschedule(newTimeSlot, newDurationInMinutes, newParticipantCount);
         notifyObservers(appointment, "MODIFIED");
     }
@@ -199,6 +263,14 @@ public class AppointmentService {
 
         if (appointmentMode == null) {
             throw new IllegalArgumentException("Appointment mode cannot be null.");
+        }
+
+        if (!timeSlotRepository.findAll().contains(timeSlot)) {
+            throw new IllegalArgumentException("Time slot does not exist in the repository.");
+        }
+
+        if (!timeSlot.getStartTime().isAfter(LocalDateTime.now(clock))) {
+            throw new IllegalArgumentException("Appointment must be booked for a future time.");
         }
 
         if (timeSlot.isBooked()) {
@@ -247,12 +319,20 @@ public class AppointmentService {
         }
     }
 
-    private void validateNewTimeSlot(TimeSlot newTimeSlot) {
+    private void validateNewTimeSlotForModification(Appointment appointment, TimeSlot newTimeSlot) {
         if (newTimeSlot == null) {
             throw new IllegalArgumentException("New time slot cannot be null.");
         }
 
-        if (newTimeSlot.isBooked()) {
+        if (!timeSlotRepository.findAll().contains(newTimeSlot)) {
+            throw new IllegalArgumentException("New time slot does not exist in the repository.");
+        }
+
+        if (!newTimeSlot.getStartTime().isAfter(LocalDateTime.now(clock))) {
+            throw new IllegalArgumentException("New time slot must be in the future.");
+        }
+
+        if (appointment.getTimeSlot() != newTimeSlot && newTimeSlot.isBooked()) {
             throw new IllegalArgumentException("New time slot is already booked.");
         }
     }
@@ -278,6 +358,9 @@ public class AppointmentService {
     private void validateAppointmentRules(Appointment appointment) {
         validateAppointmentPurposeRule(appointment);
         validateAppointmentCategoryRule(appointment);
+        validateAppointmentModeRule(appointment);
+        validateWorkingHoursRule(appointment);
+        validateWorkingDaysRule(appointment);
     }
 
     private void validateAppointmentPurposeRule(Appointment appointment) {
@@ -295,6 +378,38 @@ public class AppointmentService {
 
         if (!appointmentCategoryRule.isValid(appointment)) {
             throw new IllegalArgumentException(CATEGORY_RULE_VIOLATION_MESSAGE);
+        }
+    }
+
+    private void validateAppointmentModeRule(Appointment appointment) {
+        AppointmentModeRule appointmentModeRule =
+                appointmentModeRuleFactory.getRule(appointment.getAppointmentMode());
+
+        if (!appointmentModeRule.isValid(appointment)) {
+            throw new IllegalArgumentException(MODE_RULE_VIOLATION_MESSAGE);
+        }
+    }
+
+    private void validateWorkingHoursRule(Appointment appointment) {
+        if (!workingHoursRule.isValid(appointment)) {
+            throw new IllegalArgumentException(WORKING_HOURS_RULE_VIOLATION_MESSAGE);
+        }
+    }
+
+    private void validateWorkingDaysRule(Appointment appointment) {
+        if (!workingDaysRule.isValid(appointment)) {
+            throw new IllegalArgumentException(WORKING_DAYS_RULE_VIOLATION_MESSAGE);
+        }
+    }
+
+    private void validateUserHasNoTimeConflict(
+            User user,
+            Appointment currentAppointment,
+            Appointment targetAppointment) {
+
+        if (appointmentRepository.hasOverlappingAppointment(user, currentAppointment, targetAppointment)) {
+            throw new IllegalArgumentException(
+                    "User already has another appointment that overlaps with this time.");
         }
     }
 }

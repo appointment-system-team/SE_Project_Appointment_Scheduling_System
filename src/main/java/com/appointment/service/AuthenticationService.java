@@ -5,7 +5,7 @@ import com.appointment.repository.AdminRepository;
 
 public class AuthenticationService {
 
-    private AdminRepository repository;
+    private final AdminRepository repository;
     private Administrator loggedAdmin;
 
     public AuthenticationService(AdminRepository repository) {
@@ -13,7 +13,6 @@ public class AuthenticationService {
     }
 
     public boolean login(String username, String password) {
-
         Administrator admin = repository.findByUsername(username);
 
         if (admin != null && admin.validatePassword(password)) {
@@ -30,5 +29,9 @@ public class AuthenticationService {
 
     public boolean isLoggedIn() {
         return loggedAdmin != null;
+    }
+
+    public Administrator getLoggedAdmin() {
+        return loggedAdmin;
     }
 }

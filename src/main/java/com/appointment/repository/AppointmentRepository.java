@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.appointment.domain.Appointment;
+import com.appointment.domain.User;
 
 public class AppointmentRepository {
 
@@ -19,5 +20,27 @@ public class AppointmentRepository {
 
     public boolean contains(Appointment appointment) {
         return appointments.contains(appointment);
+    }
+
+    public boolean hasOverlappingAppointment(
+            User user,
+            Appointment excludedAppointment,
+            Appointment targetAppointment) {
+
+        for (Appointment appointment : appointments) {
+            if (appointment == excludedAppointment) {
+                continue;
+            }
+
+            if (appointment.isCancelled()) {
+                continue;
+            }
+
+            if (appointment.getUser().equals(user) && appointment.overlapsWith(targetAppointment)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -32,7 +32,7 @@ public class ReminderServiceTest {
                 Instant.parse("2025-01-01T10:00:00Z"),
                 ZoneId.systemDefault());
 
-        User user = new User("Jana");
+        User user = new User("jana1", "1234", "Jana", "jana@gmail.com", "0599000006");
         TimeSlot slot = new TimeSlot(LocalDateTime.now(fixedClock).plusHours(2));
 
         Appointment appointment = new Appointment(
@@ -52,7 +52,7 @@ public class ReminderServiceTest {
         reminderService.sendReminders();
 
         verify(notificationService, times(1))
-                .notify(any(User.class), contains("Reminder: You have an appointment at"));
+                .notifyUser(any(User.class), contains("Reminder: You have an appointment at"));
     }
 
     @Test
@@ -63,7 +63,7 @@ public class ReminderServiceTest {
                 Instant.parse("2025-01-01T10:00:00Z"),
                 ZoneId.systemDefault());
 
-        User user = new User("Jana");
+        User user = new User("jana1", "1234", "Jana", "jana@gmail.com", "0599000006");
         TimeSlot slot = new TimeSlot(LocalDateTime.now(fixedClock).minusHours(2));
 
         Appointment appointment = new Appointment(
@@ -82,7 +82,7 @@ public class ReminderServiceTest {
 
         reminderService.sendReminders();
 
-        verify(notificationService, never()).notify(any(User.class), any(String.class));
+        verify(notificationService, never()).notifyUser(any(User.class), any(String.class));
     }
 
     @Test
@@ -93,7 +93,7 @@ public class ReminderServiceTest {
                 Instant.parse("2025-01-01T10:00:00Z"),
                 ZoneId.systemDefault());
 
-        User user = new User("Jana");
+        User user = new User("jana1", "1234", "Jana", "jana@gmail.com", "0599000006");
         TimeSlot slot = new TimeSlot(LocalDateTime.now(fixedClock).plusHours(2));
 
         Appointment appointment = new Appointment(
@@ -113,6 +113,6 @@ public class ReminderServiceTest {
 
         reminderService.sendReminders();
 
-        verify(notificationService, never()).notify(any(User.class), any(String.class));
+        verify(notificationService, never()).notifyUser(any(User.class), any(String.class));
     }
 }

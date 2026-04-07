@@ -34,7 +34,7 @@ class AppointmentServiceCoverageBoostTest {
         appointmentRepository = new AppointmentRepository();
         authService = new AuthenticationService(new AdminRepository());
         service = new AppointmentService(timeSlotRepository, appointmentRepository, authService);
-        user = new User("Maryam");
+        user = new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003");
     }
 
     private TimeSlot createSlot(int hour, int minute) {
@@ -185,7 +185,7 @@ class AppointmentServiceCoverageBoostTest {
 
         service.addObserver(observer);
 
-        Appointment appointment = service.bookAppointment(
+        service.bookAppointment(
                 user,
                 slot,
                 30,

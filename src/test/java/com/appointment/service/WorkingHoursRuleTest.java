@@ -22,7 +22,7 @@ class WorkingHoursRuleTest {
         WorkingHoursRule rule = new WorkingHoursRule();
 
         Appointment appointment = new Appointment(
-                new User("Maryam"),
+        		new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003"),
                 new TimeSlot(LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(10, 0))),
                 60,
                 1,
@@ -39,7 +39,7 @@ class WorkingHoursRuleTest {
         WorkingHoursRule rule = new WorkingHoursRule();
 
         Appointment appointment = new Appointment(
-                new User("Maryam"),
+        		new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003"),
                 new TimeSlot(LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(7, 0))),
                 30,
                 1,
@@ -56,7 +56,7 @@ class WorkingHoursRuleTest {
         WorkingHoursRule rule = new WorkingHoursRule();
 
         Appointment appointment = new Appointment(
-                new User("Maryam"),
+        		new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003"),
                 new TimeSlot(LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(15, 30))),
                 60,
                 1,

@@ -36,7 +36,7 @@ public class ReminderService {
             }
 
             String message = generateReminderMessage(appointment);
-            notificationService.notify(appointment.getUser(), message);
+            notificationService.notifyUser(appointment.getUser(), message);
         }
     }
 

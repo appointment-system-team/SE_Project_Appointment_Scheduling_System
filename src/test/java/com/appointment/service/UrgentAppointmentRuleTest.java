@@ -21,7 +21,7 @@ class UrgentAppointmentRuleTest {
         UrgentAppointmentRule rule = new UrgentAppointmentRule();
 
         Appointment appointment = new Appointment(
-                new User("Zeina"),
+        		new User("zeina1", "1234", "Zeina", "zeina@gmail.com", "0599000001"),
                 new TimeSlot(LocalDateTime.now().plusDays(1)),
                 30,
                 1,
@@ -37,7 +37,7 @@ class UrgentAppointmentRuleTest {
         UrgentAppointmentRule rule = new UrgentAppointmentRule();
 
         Appointment appointment = new Appointment(
-                new User("Zeina"),
+        		new User("zeina1", "1234", "Zeina", "zeina@gmail.com", "0599000001"),
                 new TimeSlot(LocalDateTime.now().plusDays(1)),
                 45,
                 1,

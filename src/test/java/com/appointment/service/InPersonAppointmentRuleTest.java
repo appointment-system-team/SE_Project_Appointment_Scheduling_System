@@ -20,7 +20,7 @@ class InPersonAppointmentRuleTest {
         InPersonAppointmentRule rule = new InPersonAppointmentRule();
 
         Appointment appointment = new Appointment(
-                new User("Maryam"),
+        		new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003"),
                 new TimeSlot(LocalDateTime.now().plusDays(1)),
                 30,
                 1,

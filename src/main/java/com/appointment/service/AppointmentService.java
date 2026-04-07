@@ -153,7 +153,7 @@ public class AppointmentService {
 
         appointment.cancel();
         appointment.getTimeSlot().unbook();
-        notifyObservers(appointment, "CANCELLED");
+        notifyObservers(appointment, "USER_CANCELLED");
     }
 
     public void cancelAppointmentByAdmin(Appointment appointment) {
@@ -162,7 +162,7 @@ public class AppointmentService {
 
         appointment.cancel();
         appointment.getTimeSlot().unbook();
-        notifyObservers(appointment, "CANCELLED");
+        notifyObservers(appointment, "ADMIN_CANCELLED");
     }
 
     public void modifyAppointmentByUser(
@@ -183,6 +183,7 @@ public class AppointmentService {
         }
 
         modifyAppointmentInternal(appointment, newTimeSlot, newDurationInMinutes, newParticipantCount);
+        notifyObservers(appointment, "USER_MODIFIED");
     }
 
     public void modifyAppointmentByAdmin(
@@ -195,6 +196,7 @@ public class AppointmentService {
         validateAppointmentModificationRequest(appointment);
 
         modifyAppointmentInternal(appointment, newTimeSlot, newDurationInMinutes, newParticipantCount);
+        notifyObservers(appointment, "ADMIN_MODIFIED");
     }
 
     private void modifyAppointmentInternal(
@@ -225,7 +227,6 @@ public class AppointmentService {
         }
 
         appointment.reschedule(newTimeSlot, newDurationInMinutes, newParticipantCount);
-        notifyObservers(appointment, "MODIFIED");
     }
 
     private void notifyObservers(Appointment appointment, String eventType) {

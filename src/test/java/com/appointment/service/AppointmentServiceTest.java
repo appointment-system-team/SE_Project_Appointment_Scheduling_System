@@ -40,7 +40,7 @@ class AppointmentServiceTest {
                 authService
         );
 
-        user = new User("Maryam");
+        user = new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003");
     }
 
     private LocalDate getNextWorkingDay() {
@@ -141,7 +141,7 @@ class AppointmentServiceTest {
                 AppointmentMode.IN_PERSON
         );
 
-        User anotherUser = new User("Ali");
+        User anotherUser = new User("ali1", "1234", "Ali", "ali@gmail.com", "0599000005");
 
         assertThrows(IllegalStateException.class, () ->
                 service.cancelAppointmentByUser(appointment, anotherUser));
@@ -221,7 +221,7 @@ class AppointmentServiceTest {
                 AppointmentMode.IN_PERSON
         );
 
-        User anotherUser = new User("Ali");
+        User anotherUser = new User("ali1", "1234", "Ali", "ali@gmail.com", "0599000005");
 
         assertThrows(IllegalStateException.class, () ->
                 service.modifyAppointmentByUser(

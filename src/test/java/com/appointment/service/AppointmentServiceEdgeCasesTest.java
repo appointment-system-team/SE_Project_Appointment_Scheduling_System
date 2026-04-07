@@ -40,7 +40,7 @@ class AppointmentServiceEdgeCasesTest {
                 authService
         );
 
-        user = new User("Maryam");
+        user = new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003");
     }
 
     private TimeSlot createSlot(int hour, int minute) {
@@ -158,7 +158,7 @@ class AppointmentServiceEdgeCasesTest {
         );
 
         service.bookAppointment(
-                new User("Ali"), slot2, 30, 1,
+                new User("ali1", "1234", "Ali", "ali@gmail.com", "0599000005"), slot2, 30, 1,
                 AppointmentPurpose.FOLLOW_UP,
                 AppointmentCategory.INDIVIDUAL,
                 AppointmentMode.IN_PERSON

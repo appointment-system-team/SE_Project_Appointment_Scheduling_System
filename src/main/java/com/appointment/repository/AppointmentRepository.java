@@ -18,6 +18,18 @@ public class AppointmentRepository {
         return new ArrayList<>(appointments);
     }
 
+    public List<Appointment> findByUser(User user) {
+        List<Appointment> userAppointments = new ArrayList<>();
+
+        for (Appointment appointment : appointments) {
+            if (appointment.getUser().equals(user)) {
+                userAppointments.add(appointment);
+            }
+        }
+
+        return userAppointments;
+    }
+
     public boolean contains(Appointment appointment) {
         return appointments.contains(appointment);
     }

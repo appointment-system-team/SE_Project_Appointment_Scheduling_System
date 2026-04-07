@@ -33,7 +33,7 @@ class WorkingDaysRuleTest {
         WorkingDaysRule rule = new WorkingDaysRule();
 
         Appointment appointment = new Appointment(
-                new User("Maryam"),
+        		new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003"),
                 new TimeSlot(LocalDateTime.of(nextDateForDay(DayOfWeek.SUNDAY), LocalTime.of(10, 0))),
                 30,
                 1,
@@ -50,7 +50,7 @@ class WorkingDaysRuleTest {
         WorkingDaysRule rule = new WorkingDaysRule();
 
         Appointment appointment = new Appointment(
-                new User("Maryam"),
+        		new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003"),
                 new TimeSlot(LocalDateTime.of(nextDateForDay(DayOfWeek.FRIDAY), LocalTime.of(10, 0))),
                 30,
                 1,
@@ -67,7 +67,7 @@ class WorkingDaysRuleTest {
         WorkingDaysRule rule = new WorkingDaysRule();
 
         Appointment appointment = new Appointment(
-                new User("Maryam"),
+        		new User("maryam1", "1234", "Maryam", "maryam@gmail.com", "0599000003"),
                 new TimeSlot(LocalDateTime.of(nextDateForDay(DayOfWeek.SATURDAY), LocalTime.of(10, 0))),
                 30,
                 1,

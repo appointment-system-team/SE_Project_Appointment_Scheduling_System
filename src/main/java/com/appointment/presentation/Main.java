@@ -1,11 +1,6 @@
-/*package com.appointment.presentation;
+package com.appointment.presentation;
 
-import java.time.DayOfWeek;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
-
+import com.appointment.domain.Administrator;
 import com.appointment.domain.Appointment;
 import com.appointment.domain.AppointmentCategory;
 import com.appointment.domain.AppointmentMode;
@@ -21,580 +16,1061 @@ import com.appointment.service.AppointmentService;
 import com.appointment.service.AuthenticationService;
 import com.appointment.service.MockNotificationService;
 import com.appointment.service.NotificationObserver;
+import com.appointment.service.NotificationService;
 import com.appointment.service.ReminderService;
 import com.appointment.service.UserAuthenticationService;
 
+import jakarta.mail.Message;
+import jakarta.mail.PasswordAuthentication;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
+
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.border.TitledBorder;
+import java.awt.Color;
+import java.awt.Frame;
+import java.awt.GridLayout;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Scanner;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+
 public class Main {
 
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
+    private static final Scanner scanner = new Scanner(System.in);
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("EEE dd/MM/yyyy");
+    private static final DateTimeFormatter TIME_FORMAT =
+            DateTimeFormatter.ofPattern("HH:mm");
 
-        AdminRepository adminRepository = new AdminRepository();
-        UserRepository userRepository = new UserRepository();
+    public static void main(String[] args) {
+
         TimeSlotRepository timeSlotRepository = new TimeSlotRepository();
         AppointmentRepository appointmentRepository = new AppointmentRepository();
-
-        AccountValidationService validationService =
-                new AccountValidationService(userRepository, adminRepository);
+        UserRepository userRepository = new UserRepository();
+        AdminRepository adminRepository = new AdminRepository();
 
         AuthenticationService adminAuthService = new AuthenticationService(adminRepository);
         UserAuthenticationService userAuthService = new UserAuthenticationService(userRepository);
+        AccountValidationService validationService =
+                new AccountValidationService(userRepository, adminRepository);
 
-        AppointmentService service = new AppointmentService(
-                timeSlotRepository,
+        NotificationService notificationService = new MockNotificationService();
+
+        AppointmentService appointmentService =
+                new AppointmentService(timeSlotRepository, appointmentRepository, adminAuthService);
+
+        ReminderService reminderService =
+                new ReminderService(appointmentRepository, notificationService);
+
+        NotificationObserver notificationObserver =
+                new NotificationObserver(notificationService, adminRepository);
+
+        appointmentService.addObserver(notificationObserver);
+
+        seedSampleUsers(userRepository, validationService);
+        seedSampleWeekSlots(timeSlotRepository);
+
+        startMenu(
+                userRepository,
+                validationService,
+                userAuthService,
+                adminAuthService,
+                adminRepository,
                 appointmentRepository,
-                adminAuthService
+                timeSlotRepository,
+                appointmentService,
+                reminderService
         );
+    }
 
-        MockNotificationService mockService = new MockNotificationService();
-        NotificationObserver observer = new NotificationObserver(mockService, adminRepository);
-        service.addObserver(observer);
-
-        addSampleTimeSlots(timeSlotRepository);
+    private static void startMenu(
+            UserRepository userRepository,
+            AccountValidationService validationService,
+            UserAuthenticationService userAuthService,
+            AuthenticationService adminAuthService,
+            AdminRepository adminRepository,
+            AppointmentRepository appointmentRepository,
+            TimeSlotRepository timeSlotRepository,
+            AppointmentService appointmentService,
+            ReminderService reminderService) {
 
         boolean running = true;
 
         while (running) {
-            System.out.println("\n=== Appointment Scheduling System ===");
-            System.out.println("1. Login as Admin");
-            System.out.println("2. Login as User");
-            System.out.println("3. Register New User");
-            System.out.println("4. Exit");
-            System.out.print("Choose an option: ");
+            System.out.println("\n========== START MENU ==========");
+            System.out.println("1. Register User");
+            System.out.println("2. Login User");
+            System.out.println("3. Login Admin");
+            System.out.println("0. Exit");
+            System.out.print("Choose: ");
 
-            int choice = scanner.nextInt();
-            scanner.nextLine();
-
-            switch (choice) {
-                case 1:
-                    handleAdminLogin(scanner, adminAuthService, service, appointmentRepository, mockService);
-                    break;
-
-                case 2:
-                    handleUserLogin(scanner, userAuthService, service, appointmentRepository);
-                    break;
-
-                case 3:
-                    registerNewUser(scanner, userRepository, validationService);
-                    break;
-
-                case 4:
-                    running = false;
-                    System.out.println("Exiting system...");
-                    break;
-
-                default:
-                    System.out.println("Invalid choice.");
-            }
-        }
-
-        scanner.close();
-    }
-
-    private static void handleAdminLogin(
-            Scanner scanner,
-            AuthenticationService adminAuthService,
-            AppointmentService service,
-            AppointmentRepository appointmentRepository,
-            MockNotificationService mockService) {
-
-        System.out.println("\n=== Admin Login ===");
-
-        System.out.print("Username: ");
-        String username = scanner.nextLine();
-
-        System.out.print("Password: ");
-        String password = scanner.nextLine();
-
-        if (!adminAuthService.login(username, password)) {
-            System.out.println("Login failed ❌");
-            return;
-        }
-
-        System.out.println("Login successful ✅");
-
-        boolean loggedIn = true;
-
-        while (loggedIn) {
-            System.out.println("\n=== Admin Menu ===");
-            System.out.println("1. View available slots");
-            System.out.println("2. View all appointments");
-            System.out.println("3. Modify appointment");
-            System.out.println("4. Cancel appointment");
-            System.out.println("5. Send reminders");
-            System.out.println("6. Show notifications");
-            System.out.println("7. Logout");
-            System.out.print("Choose an option: ");
-
-            int choice = scanner.nextInt();
-            scanner.nextLine();
+            int choice = readInt();
 
             try {
                 switch (choice) {
                     case 1:
-                        viewAvailableSlots(service);
+                        registerUser(userRepository, validationService);
                         break;
-
                     case 2:
-                        viewAllAppointments(appointmentRepository);
+                        if (loginUser(userAuthService)) {
+                            userMenu(
+                                    userAuthService,
+                                    adminRepository,
+                                    appointmentRepository,
+                                    timeSlotRepository,
+                                    appointmentService
+                            );
+                        }
                         break;
-
                     case 3:
-                        modifyAppointmentByAdmin(scanner, service, appointmentRepository);
+                        if (loginAdmin(adminAuthService)) {
+                            adminMenu(
+                                    adminAuthService,
+                                    adminRepository,
+                                    appointmentRepository,
+                                    timeSlotRepository,
+                                    appointmentService,
+                                    reminderService
+                            );
+                        }
                         break;
-
-                    case 4:
-                        cancelAppointmentByAdmin(scanner, service, appointmentRepository);
+                    case 0:
+                        running = false;
+                        System.out.println("Goodbye.");
                         break;
-
-                    case 5:
-                        ReminderService reminderService =
-                                new ReminderService(appointmentRepository, mockService);
-                        reminderService.sendReminders();
-                        System.out.println("Reminders sent ✅");
-                        break;
-
-                    case 6:
-                        showNotifications(mockService);
-                        break;
-
-                    case 7:
-                        adminAuthService.logout();
-                        loggedIn = false;
-                        System.out.println("Admin logged out.");
-                        break;
-
                     default:
                         System.out.println("Invalid choice.");
                 }
             } catch (Exception e) {
-                System.out.println("Operation failed ❌: " + e.getMessage());
+                System.out.println("Operation failed: " + e.getMessage());
             }
         }
     }
 
-    private static void handleUserLogin(
-            Scanner scanner,
+    private static void userMenu(
             UserAuthenticationService userAuthService,
-            AppointmentService service,
-            AppointmentRepository appointmentRepository) {
+            AdminRepository adminRepository,
+            AppointmentRepository appointmentRepository,
+            TimeSlotRepository timeSlotRepository,
+            AppointmentService appointmentService) {
 
-        System.out.println("\n=== User Login ===");
+        boolean running = true;
 
-        System.out.print("Username: ");
-        String username = scanner.nextLine();
-
-        System.out.print("Password: ");
-        String password = scanner.nextLine();
-
-        if (!userAuthService.login(username, password)) {
-            System.out.println("Login failed ❌");
-            return;
-        }
-
-        User user = userAuthService.getLoggedUser();
-        System.out.println("Welcome, " + user.getFullName() + " ✅");
-
-        boolean loggedIn = true;
-
-        while (loggedIn) {
-            System.out.println("\n=== User Menu ===");
-            System.out.println("1. View available slots");
-            System.out.println("2. Book appointment");
-            System.out.println("3. View my appointments");
-            System.out.println("4. Modify my appointment");
-            System.out.println("5. Cancel my appointment");
+        while (running) {
+            System.out.println("\n========== USER MENU ==========");
+            System.out.println("1. View Available Slots");
+            System.out.println("2. Book Appointment");
+            System.out.println("3. View My Appointments");
+            System.out.println("4. Cancel My Appointment");
+            System.out.println("5. Modify My Appointment");
             System.out.println("6. Logout");
-            System.out.print("Choose an option: ");
+            System.out.print("Choose: ");
 
-            int choice = scanner.nextInt();
-            scanner.nextLine();
+            int choice = readInt();
 
             try {
                 switch (choice) {
                     case 1:
-                        viewAvailableSlots(service);
+                        openSlotsViewerGui(
+                                getAllSlots(timeSlotRepository),
+                                appointmentRepository.findAll()
+                        );
                         break;
-
                     case 2:
-                        bookAppointment(scanner, service, user);
+                        bookAppointmentWithGui(
+                                appointmentService,
+                                userAuthService,
+                                adminRepository,
+                                appointmentRepository,
+                                timeSlotRepository
+                        );
                         break;
-
                     case 3:
-                        viewUserAppointments(appointmentRepository, user);
+                        viewMyAppointments(appointmentRepository, userAuthService);
                         break;
-
                     case 4:
-                        modifyAppointmentByUser(scanner, service, appointmentRepository, user);
+                        cancelMyAppointment(
+                                appointmentService,
+                                appointmentRepository,
+                                userAuthService,
+                                adminRepository
+                        );
                         break;
-
                     case 5:
-                        cancelAppointmentByUser(scanner, service, appointmentRepository, user);
+                        modifyMyAppointmentWithGui(
+                                appointmentService,
+                                appointmentRepository,
+                                timeSlotRepository,
+                                userAuthService,
+                                adminRepository
+                        );
                         break;
-
                     case 6:
                         userAuthService.logout();
-                        loggedIn = false;
+                        running = false;
                         System.out.println("User logged out.");
                         break;
-
                     default:
                         System.out.println("Invalid choice.");
                 }
             } catch (Exception e) {
-                System.out.println("Operation failed ❌: " + e.getMessage());
+                System.out.println("Operation failed: " + e.getMessage());
             }
         }
     }
 
-    private static void registerNewUser(
-            Scanner scanner,
-            UserRepository userRepository,
-            AccountValidationService validationService) {
+    private static void adminMenu(
+            AuthenticationService adminAuthService,
+            AdminRepository adminRepository,
+            AppointmentRepository appointmentRepository,
+            TimeSlotRepository timeSlotRepository,
+            AppointmentService appointmentService,
+            ReminderService reminderService) {
 
-        System.out.println("\n=== Register New User ===");
+        boolean running = true;
 
-        System.out.print("Enter username: ");
-        String username = scanner.nextLine();
+        while (running) {
+            System.out.println("\n========== ADMIN MENU ==========");
+            System.out.println("1. View All Appointments");
+            System.out.println("2. Cancel Appointment");
+            System.out.println("3. Modify Appointment");
+            System.out.println("4. Send Reminders");
+            System.out.println("5. Logout");
+            System.out.print("Choose: ");
 
-        System.out.print("Enter password: ");
-        String password = scanner.nextLine();
+            int choice = readInt();
 
-        System.out.print("Enter full name: ");
-        String fullName = scanner.nextLine();
-
-        System.out.print("Enter email: ");
-        String email = scanner.nextLine();
-
-        System.out.print("Enter phone number: ");
-        String phoneNumber = scanner.nextLine();
-
-        User newUser = new User(username, password, fullName, email, phoneNumber);
-        userRepository.addUser(newUser, validationService);
-
-        System.out.println("User registered successfully ✅");
+            try {
+                switch (choice) {
+                    case 1:
+                        openAppointmentsViewerGui(appointmentRepository.findAll());
+                        break;
+                    case 2:
+                        adminCancelAppointment(
+                                appointmentService,
+                                appointmentRepository,
+                                adminAuthService
+                        );
+                        break;
+                    case 3:
+                        adminModifyAppointmentWithGui(
+                                appointmentService,
+                                appointmentRepository,
+                                timeSlotRepository,
+                                adminAuthService
+                        );
+                        break;
+                    case 4:
+                        reminderService.sendReminders();
+                        sendReminderEmailsToUsers(appointmentRepository.findAll());
+                        System.out.println("Reminders sent.");
+                        break;
+                    case 5:
+                        adminAuthService.logout();
+                        running = false;
+                        System.out.println("Admin logged out.");
+                        break;
+                    default:
+                        System.out.println("Invalid choice.");
+                }
+            } catch (Exception e) {
+                System.out.println("Operation failed: " + e.getMessage());
+            }
+        }
     }
 
-    private static void showNotifications(MockNotificationService mockService) {
-        System.out.println("\n=== Notifications ===");
+    private static void registerUser(UserRepository userRepository, AccountValidationService validationService) {
+        System.out.print("Username: ");
+        String username = scanner.nextLine().trim();
 
-        if (mockService.getSentMessages().isEmpty()) {
-            System.out.println("No notifications yet.");
+        System.out.print("Password: ");
+        String password = scanner.nextLine().trim();
+
+        System.out.print("Full name: ");
+        String fullName = scanner.nextLine().trim();
+
+        System.out.print("Email: ");
+        String email = scanner.nextLine().trim();
+
+        System.out.print("Phone number: ");
+        String phoneNumber = scanner.nextLine().trim();
+
+        User user = new User(username, password, fullName, email, phoneNumber);
+        userRepository.addUser(user, validationService);
+
+        System.out.println("User registered successfully.");
+    }
+
+    private static boolean loginUser(UserAuthenticationService userAuthService) {
+        System.out.print("Username: ");
+        String username = scanner.nextLine().trim();
+
+        System.out.print("Password: ");
+        String password = scanner.nextLine().trim();
+
+        boolean success = userAuthService.login(username, password);
+        System.out.println(success ? "User login successful." : "Invalid user credentials.");
+        return success;
+    }
+
+    private static boolean loginAdmin(AuthenticationService adminAuthService) {
+        System.out.print("Admin username: ");
+        String username = scanner.nextLine().trim();
+
+        System.out.print("Password: ");
+        String password = scanner.nextLine().trim();
+
+        boolean success = adminAuthService.login(username, password);
+        System.out.println(success ? "Admin login successful." : "Invalid admin credentials.");
+        return success;
+    }
+
+    private static void openSlotsViewerGui(
+            List<TimeSlot> allSlots,
+            List<Appointment> appointments) {
+
+        if (allSlots.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "No slots found.");
             return;
         }
 
-        for (String msg : mockService.getSentMessages()) {
-            System.out.println(msg);
-        }
-    }
+        JFrame frame = new JFrame("Weekly Slots");
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        frame.setSize(1200, 700);
+        frame.setLocationRelativeTo(null);
 
-    private static void addSampleTimeSlots(TimeSlotRepository repository) {
-        repository.addTimeSlot(new TimeSlot(nextWorkingDayAt(10, 0)));
-        repository.addTimeSlot(new TimeSlot(nextWorkingDayAt(11, 0)));
-        repository.addTimeSlot(new TimeSlot(nextWorkingDayAtAfterDays(1, 9, 0)));
-        repository.addTimeSlot(new TimeSlot(nextWorkingDayAtAfterDays(1, 10, 0)));
-        repository.addTimeSlot(new TimeSlot(nextWorkingDayAtAfterDays(2, 12, 0)));
-        repository.addTimeSlot(new TimeSlot(nextWorkingDayAtAfterDays(2, 13, 0)));
-    }
+        JPanel mainPanel = new JPanel(new GridLayout(0, 5, 10, 10));
 
-    private static LocalDateTime nextWorkingDayAt(int hour, int minute) {
-        LocalDateTime dateTime = LocalDateTime.now().plusDays(1)
-                .withHour(hour)
-                .withMinute(minute)
-                .withSecond(0)
-                .withNano(0);
+        Map<LocalDate, List<TimeSlot>> grouped =
+                allSlots.stream().collect(Collectors.groupingBy(
+                        slot -> slot.getStartTime().toLocalDate(),
+                        TreeMap::new,
+                        Collectors.toList()
+                ));
 
-        while (dateTime.getDayOfWeek() == DayOfWeek.FRIDAY
-                || dateTime.getDayOfWeek() == DayOfWeek.SATURDAY) {
-            dateTime = dateTime.plusDays(1);
-        }
+        for (Map.Entry<LocalDate, List<TimeSlot>> entry : grouped.entrySet()) {
+            JPanel dayPanel = new JPanel(new GridLayout(0, 1, 5, 5));
+            dayPanel.setBorder(new TitledBorder(entry.getKey().format(DATE_FORMAT)));
 
-        return dateTime;
-    }
+            List<TimeSlot> daySlots = entry.getValue().stream()
+                    .sorted(Comparator.comparing(TimeSlot::getStartTime))
+                    .collect(Collectors.toList());
 
-    private static LocalDateTime nextWorkingDayAtAfterDays(int extraDays, int hour, int minute) {
-        LocalDateTime dateTime = LocalDateTime.now().plusDays(1 + extraDays)
-                .withHour(hour)
-                .withMinute(minute)
-                .withSecond(0)
-                .withNano(0);
+            for (TimeSlot slot : daySlots) {
+                JButton button = new JButton(slot.getStartTime().toLocalTime().format(TIME_FORMAT));
+                button.setEnabled(false);
+                button.setOpaque(true);
 
-        while (dateTime.getDayOfWeek() == DayOfWeek.FRIDAY
-                || dateTime.getDayOfWeek() == DayOfWeek.SATURDAY) {
-            dateTime = dateTime.plusDays(1);
+                if (isSlotOccupiedByAnyAppointment(slot.getStartTime(), appointments, null)) {
+                    button.setBackground(new Color(244, 204, 204));
+                } else {
+                    button.setBackground(new Color(198, 239, 206));
+                }
+
+                dayPanel.add(button);
+            }
+
+            mainPanel.add(dayPanel);
         }
 
-        return dateTime;
+        frame.add(new JScrollPane(mainPanel));
+        frame.setVisible(true);
     }
 
-    private static void viewAvailableSlots(AppointmentService service) {
-        List<TimeSlot> slots = service.getAvailableSlots();
-
-        if (slots.isEmpty()) {
-            System.out.println("No available slots.");
-            return;
-        }
-
-        System.out.println("\nAvailable slots:");
-        for (int i = 0; i < slots.size(); i++) {
-            System.out.println((i + 1) + ". " + slots.get(i).getStartTime());
-        }
-    }
-
-    private static void viewAllAppointments(AppointmentRepository repository) {
-        List<Appointment> appointments = repository.findAll();
-
+    private static void openAppointmentsViewerGui(List<Appointment> appointments) {
         if (appointments.isEmpty()) {
-            System.out.println("No appointments found.");
+            JOptionPane.showMessageDialog(null, "No appointments found.");
             return;
         }
 
-        System.out.println("\nAll Appointments:");
-        printAppointments(appointments);
+        JFrame frame = new JFrame("Appointments");
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        frame.setSize(1100, 600);
+        frame.setLocationRelativeTo(null);
+
+        String[] columns = {
+                "User", "Start Time", "Duration", "Participants", "Purpose", "Category", "Mode", "Status"
+        };
+
+        String[][] data = new String[appointments.size()][8];
+
+        for (int i = 0; i < appointments.size(); i++) {
+            Appointment a = appointments.get(i);
+            data[i][0] = a.getUser().getFullName();
+            data[i][1] = a.getTimeSlot().getStartTime().toString();
+            data[i][2] = String.valueOf(a.getDurationInMinutes());
+            data[i][3] = String.valueOf(a.getParticipantCount());
+            data[i][4] = String.valueOf(a.getAppointmentPurpose());
+            data[i][5] = String.valueOf(a.getAppointmentCategory());
+            data[i][6] = String.valueOf(a.getAppointmentMode());
+            data[i][7] = String.valueOf(a.getStatus());
+        }
+
+        JTable table = new JTable(data, columns);
+        frame.add(new JScrollPane(table));
+        frame.setVisible(true);
     }
 
-    private static void viewUserAppointments(AppointmentRepository repository, User user) {
-        List<Appointment> appointments = repository.findByUser(user);
+    private static void bookAppointmentWithGui(
+            AppointmentService appointmentService,
+            UserAuthenticationService userAuthService,
+            AdminRepository adminRepository,
+            AppointmentRepository appointmentRepository,
+            TimeSlotRepository timeSlotRepository) {
 
-        if (appointments.isEmpty()) {
+        User currentUser = userAuthService.getLoggedUser();
+        if (currentUser == null) {
+            System.out.println("Please login as user first.");
+            return;
+        }
+
+        TimeSlot selectedSlot = pickSlotFromGui(
+                getAllSlots(timeSlotRepository),
+                appointmentRepository.findAll(),
+                null,
+                "Book Appointment - Select a Slot"
+        );
+
+        if (selectedSlot == null) {
+            return;
+        }
+
+        Integer duration = askIntegerDialog("Enter duration in minutes:");
+        if (duration == null) {
+            return;
+        }
+
+        Integer participantCount = askIntegerDialog("Enter participant count:");
+        if (participantCount == null) {
+            return;
+        }
+
+        AppointmentPurpose purpose = choosePurposeDialog();
+        if (purpose == null) {
+            return;
+        }
+
+        AppointmentCategory category = chooseCategoryDialog();
+        if (category == null) {
+            return;
+        }
+
+        AppointmentMode mode = chooseModeDialog();
+        if (mode == null) {
+            return;
+        }
+
+        Appointment appointment = appointmentService.bookAppointment(
+                currentUser,
+                selectedSlot,
+                duration,
+                participantCount,
+                purpose,
+                category,
+                mode
+        );
+
+        JOptionPane.showMessageDialog(
+                null,
+                "Appointment booked successfully at " + appointment.getTimeSlot().getStartTime()
+        );
+
+        sendEmail(
+                currentUser.getEmail(),
+                "Appointment Confirmed",
+                "Your appointment has been booked successfully for "
+                        + appointment.getTimeSlot().getStartTime() + "."
+        );
+
+        for (Administrator admin : adminRepository.findAll()) {
+            sendEmail(
+                    admin.getEmail(),
+                    "New Appointment Booked",
+                    "User " + currentUser.getFullName()
+                            + " booked an appointment for "
+                            + appointment.getTimeSlot().getStartTime() + "."
+            );
+        }
+    }
+
+    private static void viewMyAppointments(
+            AppointmentRepository appointmentRepository,
+            UserAuthenticationService userAuthService) {
+
+        User currentUser = userAuthService.getLoggedUser();
+        if (currentUser == null) {
+            System.out.println("Please login as user first.");
+            return;
+        }
+
+        List<Appointment> myAppointments = appointmentRepository.findByUser(currentUser);
+
+        if (myAppointments.isEmpty()) {
             System.out.println("No appointments found.");
             return;
         }
 
         System.out.println("\nMy Appointments:");
-        printAppointments(appointments);
-    }
-
-    private static void printAppointments(List<Appointment> appointments) {
-        for (int i = 0; i < appointments.size(); i++) {
-            Appointment a = appointments.get(i);
-            System.out.println((i + 1) + ". "
-                    + "User: " + a.getUser().getFullName()
-                    + ", Username: " + a.getUser().getUsername()
-                    + ", Time: " + a.getTimeSlot().getStartTime()
-                    + ", Duration: " + a.getDurationInMinutes()
-                    + ", Participants: " + a.getParticipantCount()
-                    + ", Purpose: " + a.getAppointmentPurpose()
-                    + ", Category: " + a.getAppointmentCategory()
-                    + ", Mode: " + a.getAppointmentMode()
-                    + ", Status: " + a.getStatus());
+        for (int i = 0; i < myAppointments.size(); i++) {
+            printAppointment(i, myAppointments.get(i));
         }
     }
 
-    private static void bookAppointment(Scanner scanner, AppointmentService service, User user) {
-        List<TimeSlot> slots = service.getAvailableSlots();
+    private static void cancelMyAppointment(
+            AppointmentService appointmentService,
+            AppointmentRepository appointmentRepository,
+            UserAuthenticationService userAuthService,
+            AdminRepository adminRepository) {
 
-        if (slots.isEmpty()) {
-            System.out.println("No available slots.");
+        User currentUser = userAuthService.getLoggedUser();
+        if (currentUser == null) {
+            System.out.println("Please login as user first.");
             return;
         }
 
-        viewAvailableSlots(service);
+        List<Appointment> myAppointments = appointmentRepository.findByUser(currentUser);
 
-        System.out.print("Choose slot number: ");
-        int slotChoice = scanner.nextInt();
-        scanner.nextLine();
+        if (myAppointments.isEmpty()) {
+            System.out.println("No appointments to cancel.");
+            return;
+        }
 
-        TimeSlot selectedSlot = slots.get(slotChoice - 1);
+        for (int i = 0; i < myAppointments.size(); i++) {
+            printAppointment(i, myAppointments.get(i));
+        }
 
-        System.out.print("Enter duration: ");
-        int duration = scanner.nextInt();
+        System.out.print("Choose appointment index to cancel: ");
+        int index = readInt();
 
-        System.out.print("Enter participants: ");
-        int participants = scanner.nextInt();
-        scanner.nextLine();
+        if (index < 0 || index >= myAppointments.size()) {
+            System.out.println("Invalid index.");
+            return;
+        }
 
-        AppointmentPurpose purpose = choosePurpose(scanner);
-        AppointmentCategory category = chooseCategory(scanner);
-        AppointmentMode mode = chooseMode(scanner);
+        Appointment appointment = myAppointments.get(index);
+        String appointmentTime = appointment.getTimeSlot().getStartTime().toString();
 
-        Appointment appointment = service.bookAppointment(
-                user, selectedSlot, duration, participants, purpose, category, mode
+        appointmentService.cancelAppointmentByUser(appointment, currentUser);
+        System.out.println("Appointment cancelled successfully.");
+
+        sendEmail(
+                currentUser.getEmail(),
+                "Appointment Cancelled",
+                "Your appointment on " + appointmentTime + " has been cancelled successfully."
         );
 
-        System.out.println("Appointment booked ✅ at " + appointment.getTimeSlot().getStartTime());
-    }
-
-    private static AppointmentPurpose choosePurpose(Scanner scanner) {
-        System.out.println("1. URGENT  2. FOLLOW_UP  3. ASSESSMENT");
-        int choice = scanner.nextInt();
-        scanner.nextLine();
-
-        switch (choice) {
-            case 1:
-                return AppointmentPurpose.URGENT;
-            case 2:
-                return AppointmentPurpose.FOLLOW_UP;
-            case 3:
-                return AppointmentPurpose.ASSESSMENT;
-            default:
-                throw new IllegalArgumentException("Invalid purpose");
+        for (Administrator admin : adminRepository.findAll()) {
+            sendEmail(
+                    admin.getEmail(),
+                    "Appointment Cancelled by User",
+                    "User " + currentUser.getFullName()
+                            + " cancelled the appointment on " + appointmentTime + "."
+            );
         }
     }
 
-    private static AppointmentCategory chooseCategory(Scanner scanner) {
-        System.out.println("1. INDIVIDUAL  2. GROUP");
-        int choice = scanner.nextInt();
-        scanner.nextLine();
+    private static void modifyMyAppointmentWithGui(
+            AppointmentService appointmentService,
+            AppointmentRepository appointmentRepository,
+            TimeSlotRepository timeSlotRepository,
+            UserAuthenticationService userAuthService,
+            AdminRepository adminRepository) {
 
-        switch (choice) {
-            case 1:
+        User currentUser = userAuthService.getLoggedUser();
+        if (currentUser == null) {
+            System.out.println("Please login as user first.");
+            return;
+        }
+
+        List<Appointment> myAppointments = appointmentRepository.findByUser(currentUser);
+        if (myAppointments.isEmpty()) {
+            System.out.println("No appointments to modify.");
+            return;
+        }
+
+        for (int i = 0; i < myAppointments.size(); i++) {
+            printAppointment(i, myAppointments.get(i));
+        }
+
+        System.out.print("Choose appointment index to modify: ");
+        int appointmentIndex = readInt();
+
+        if (appointmentIndex < 0 || appointmentIndex >= myAppointments.size()) {
+            System.out.println("Invalid appointment index.");
+            return;
+        }
+
+        Appointment currentAppointment = myAppointments.get(appointmentIndex);
+
+        TimeSlot newSlot = pickSlotFromGui(
+                getAllSlots(timeSlotRepository),
+                appointmentRepository.findAll(),
+                currentAppointment,
+                "Modify Appointment - Select New Slot"
+        );
+
+        if (newSlot == null) {
+            return;
+        }
+
+        Integer newDuration = askIntegerDialog("Enter new duration in minutes:");
+        if (newDuration == null) {
+            return;
+        }
+
+        Integer newParticipantCount = askIntegerDialog("Enter new participant count:");
+        if (newParticipantCount == null) {
+            return;
+        }
+
+        appointmentService.modifyAppointmentByUser(
+                currentAppointment,
+                currentUser,
+                newSlot,
+                newDuration,
+                newParticipantCount
+        );
+
+        JOptionPane.showMessageDialog(null, "Appointment modified successfully.");
+
+        sendEmail(
+                currentUser.getEmail(),
+                "Appointment Modified",
+                "Your appointment has been modified successfully. "
+                        + "New time: " + currentAppointment.getTimeSlot().getStartTime() + "."
+        );
+
+        for (Administrator admin : adminRepository.findAll()) {
+            sendEmail(
+                    admin.getEmail(),
+                    "Appointment Modified by User",
+                    "User " + currentUser.getFullName()
+                            + " modified their appointment. New time: "
+                            + currentAppointment.getTimeSlot().getStartTime() + "."
+            );
+        }
+    }
+
+    private static void adminCancelAppointment(
+            AppointmentService appointmentService,
+            AppointmentRepository appointmentRepository,
+            AuthenticationService adminAuthService) {
+
+        if (!adminAuthService.isLoggedIn()) {
+            System.out.println("Please login as admin first.");
+            return;
+        }
+
+        List<Appointment> appointments = appointmentRepository.findAll();
+        if (appointments.isEmpty()) {
+            System.out.println("No appointments found.");
+            return;
+        }
+
+        for (int i = 0; i < appointments.size(); i++) {
+            printAppointment(i, appointments.get(i));
+        }
+
+        System.out.print("Choose appointment index to cancel: ");
+        int index = readInt();
+
+        if (index < 0 || index >= appointments.size()) {
+            System.out.println("Invalid index.");
+            return;
+        }
+
+        Appointment appointment = appointments.get(index);
+        String userEmail = appointment.getUser().getEmail();
+        String appointmentTime = appointment.getTimeSlot().getStartTime().toString();
+
+        appointmentService.cancelAppointmentByAdmin(appointment);
+        System.out.println("Appointment cancelled by admin.");
+
+        sendEmail(
+                userEmail,
+                "Appointment Cancelled by Admin",
+                "Your appointment on " + appointmentTime + " was cancelled by the administrator."
+        );
+    }
+
+    private static void adminModifyAppointmentWithGui(
+            AppointmentService appointmentService,
+            AppointmentRepository appointmentRepository,
+            TimeSlotRepository timeSlotRepository,
+            AuthenticationService adminAuthService) {
+
+        if (!adminAuthService.isLoggedIn()) {
+            System.out.println("Please login as admin first.");
+            return;
+        }
+
+        List<Appointment> appointments = appointmentRepository.findAll();
+        if (appointments.isEmpty()) {
+            System.out.println("No appointments found.");
+            return;
+        }
+
+        for (int i = 0; i < appointments.size(); i++) {
+            printAppointment(i, appointments.get(i));
+        }
+
+        System.out.print("Choose appointment index to modify: ");
+        int appointmentIndex = readInt();
+
+        if (appointmentIndex < 0 || appointmentIndex >= appointments.size()) {
+            System.out.println("Invalid appointment index.");
+            return;
+        }
+
+        Appointment currentAppointment = appointments.get(appointmentIndex);
+        String userEmail = currentAppointment.getUser().getEmail();
+
+        TimeSlot newSlot = pickSlotFromGui(
+                getAllSlots(timeSlotRepository),
+                appointmentRepository.findAll(),
+                currentAppointment,
+                "Admin Modify Appointment - Select New Slot"
+        );
+
+        if (newSlot == null) {
+            return;
+        }
+
+        Integer newDuration = askIntegerDialog("Enter new duration in minutes:");
+        if (newDuration == null) {
+            return;
+        }
+
+        Integer newParticipantCount = askIntegerDialog("Enter new participant count:");
+        if (newParticipantCount == null) {
+            return;
+        }
+
+        appointmentService.modifyAppointmentByAdmin(
+                currentAppointment,
+                newSlot,
+                newDuration,
+                newParticipantCount
+        );
+
+        JOptionPane.showMessageDialog(null, "Appointment modified by admin.");
+
+        sendEmail(
+                userEmail,
+                "Appointment Modified by Admin",
+                "Your appointment was modified by the administrator. "
+                        + "The updated time is " + currentAppointment.getTimeSlot().getStartTime() + "."
+        );
+    }
+
+    private static TimeSlot pickSlotFromGui(
+            List<TimeSlot> allSlots,
+            List<Appointment> appointments,
+            Appointment ignoredAppointment,
+            String title) {
+
+        if (allSlots == null || allSlots.isEmpty()) {
+            return null;
+        }
+
+        final TimeSlot[] selectedSlot = {null};
+
+        JDialog dialog = new JDialog((Frame) null, title, true);
+        dialog.setSize(1200, 700);
+        dialog.setLocationRelativeTo(null);
+
+        JPanel mainPanel = new JPanel(new GridLayout(0, 5, 10, 10));
+
+        Map<LocalDate, List<TimeSlot>> grouped =
+                allSlots.stream().collect(Collectors.groupingBy(
+                        slot -> slot.getStartTime().toLocalDate(),
+                        TreeMap::new,
+                        Collectors.toList()
+                ));
+
+        for (Map.Entry<LocalDate, List<TimeSlot>> entry : grouped.entrySet()) {
+            JPanel dayPanel = new JPanel(new GridLayout(0, 1, 5, 5));
+            dayPanel.setBorder(new TitledBorder(entry.getKey().format(DATE_FORMAT)));
+
+            List<TimeSlot> daySlots = entry.getValue().stream()
+                    .sorted(Comparator.comparing(TimeSlot::getStartTime))
+                    .collect(Collectors.toList());
+
+            for (TimeSlot slot : daySlots) {
+                String label = slot.getStartTime().toLocalTime().format(TIME_FORMAT);
+                JButton button = new JButton(label);
+                button.setOpaque(true);
+
+                if (isSlotOccupiedByAnyAppointment(slot.getStartTime(), appointments, ignoredAppointment)) {
+                    button.setBackground(new Color(244, 204, 204));
+                    button.setEnabled(false);
+                } else {
+                    button.setBackground(new Color(198, 239, 206));
+                    button.addActionListener(e -> {
+                        selectedSlot[0] = slot;
+                        dialog.dispose();
+                    });
+                }
+
+                dayPanel.add(button);
+            }
+
+            mainPanel.add(dayPanel);
+        }
+
+        dialog.add(new JScrollPane(mainPanel));
+        dialog.setVisible(true);
+
+        return selectedSlot[0];
+    }
+
+    private static boolean isSlotOccupiedByAnyAppointment(
+            LocalDateTime slotTime,
+            List<Appointment> appointments,
+            Appointment ignoredAppointment) {
+
+        for (Appointment appointment : appointments) {
+            if (appointment == ignoredAppointment) {
+                continue;
+            }
+
+            if (appointment.isCancelled()) {
+                continue;
+            }
+
+            LocalDateTime start = appointment.getTimeSlot().getStartTime();
+            LocalDateTime end = start.plusMinutes(appointment.getDurationInMinutes());
+
+            if (!slotTime.isBefore(start) && slotTime.isBefore(end)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Integer askIntegerDialog(String message) {
+        String input = JOptionPane.showInputDialog(null, message);
+        if (input == null || input.trim().isEmpty()) {
+            return null;
+        }
+
+        try {
+            return Integer.parseInt(input.trim());
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(null, "Please enter a valid number.");
+            return null;
+        }
+    }
+
+    private static AppointmentPurpose choosePurposeDialog() {
+        Object[] choices = {
+            "URGENT - Max 30 minutes (quick appointment)",
+            "FOLLOW_UP - Individual appointment only",
+            "ASSESSMENT - In-person appointment only"
+        };
+
+        Object result = JOptionPane.showInputDialog(
+                null,
+                "Choose purpose:",
+                "Appointment Purpose",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                choices,
+                choices[0]
+        );
+
+        if (result == null) return null;
+
+        String selected = result.toString();
+
+        if (selected.startsWith("URGENT")) return AppointmentPurpose.URGENT;
+        if (selected.startsWith("FOLLOW_UP")) return AppointmentPurpose.FOLLOW_UP;
+        if (selected.startsWith("ASSESSMENT")) return AppointmentPurpose.ASSESSMENT;
+
+        return null;
+    }
+
+    private static AppointmentCategory chooseCategoryDialog() {
+        Object[] choices = {"INDIVIDUAL", "GROUP"};
+        Object result = JOptionPane.showInputDialog(
+                null,
+                "Choose category:",
+                "Appointment Category",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                choices,
+                choices[0]
+        );
+
+        if (result == null) {
+            return null;
+        }
+
+        switch (result.toString()) {
+            case "INDIVIDUAL":
                 return AppointmentCategory.INDIVIDUAL;
-            case 2:
+            case "GROUP":
                 return AppointmentCategory.GROUP;
             default:
-                throw new IllegalArgumentException("Invalid category");
+                return null;
         }
     }
 
-    private static AppointmentMode chooseMode(Scanner scanner) {
-        System.out.println("1. IN_PERSON  2. VIRTUAL");
-        int choice = scanner.nextInt();
-        scanner.nextLine();
+    private static AppointmentMode chooseModeDialog() {
+        Object[] choices = {"VIRTUAL", "IN_PERSON"};
+        Object result = JOptionPane.showInputDialog(
+                null,
+                "Choose mode:",
+                "Appointment Mode",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                choices,
+                choices[0]
+        );
 
-        switch (choice) {
-            case 1:
-                return AppointmentMode.IN_PERSON;
-            case 2:
+        if (result == null) {
+            return null;
+        }
+
+        switch (result.toString()) {
+            case "VIRTUAL":
                 return AppointmentMode.VIRTUAL;
+            case "IN_PERSON":
+                return AppointmentMode.IN_PERSON;
             default:
-                throw new IllegalArgumentException("Invalid mode");
+                return null;
         }
     }
 
-    private static void modifyAppointmentByUser(
-            Scanner scanner,
-            AppointmentService service,
-            AppointmentRepository repo,
-            User user) {
-
-        List<Appointment> list = repo.findByUser(user);
-
-        if (list.isEmpty()) {
-            System.out.println("No appointments.");
-            return;
-        }
-
-        viewUserAppointments(repo, user);
-
-        System.out.print("Choose appointment: ");
-        int idx = scanner.nextInt();
-        scanner.nextLine();
-
-        Appointment appointment = list.get(idx - 1);
-
-        List<TimeSlot> slots = new ArrayList<>(service.getAvailableSlots());
-        if (!slots.contains(appointment.getTimeSlot())) {
-            slots.add(appointment.getTimeSlot());
-        }
-
-        System.out.println("Choose new slot:");
-        for (int i = 0; i < slots.size(); i++) {
-            System.out.println((i + 1) + ". " + slots.get(i).getStartTime());
-        }
-
-        int s = scanner.nextInt();
-
-        System.out.print("New duration: ");
-        int d = scanner.nextInt();
-
-        System.out.print("New participants: ");
-        int p = scanner.nextInt();
-        scanner.nextLine();
-
-        service.modifyAppointmentByUser(appointment, user, slots.get(s - 1), d, p);
-
-        System.out.println("Modified successfully ✅");
+    private static void printAppointment(int index, Appointment appointment) {
+        System.out.println(
+                index + ". User: " + appointment.getUser().getFullName()
+                        + " | Time: " + appointment.getTimeSlot().getStartTime()
+                        + " | Duration: " + appointment.getDurationInMinutes() + " mins"
+                        + " | Participants: " + appointment.getParticipantCount()
+                        + " | Purpose: " + appointment.getAppointmentPurpose()
+                        + " | Category: " + appointment.getAppointmentCategory()
+                        + " | Mode: " + appointment.getAppointmentMode()
+                        + " | Status: " + appointment.getStatus()
+        );
     }
 
-    private static void cancelAppointmentByUser(
-            Scanner scanner,
-            AppointmentService service,
-            AppointmentRepository repo,
-            User user) {
-
-        List<Appointment> list = repo.findByUser(user);
-
-        if (list.isEmpty()) {
-            System.out.println("No appointments.");
-            return;
+    private static int readInt() {
+        while (true) {
+            try {
+                String input = scanner.nextLine().trim();
+                return Integer.parseInt(input);
+            } catch (NumberFormatException e) {
+                System.out.print("Enter a valid number: ");
+            }
         }
-
-        viewUserAppointments(repo, user);
-
-        System.out.print("Choose appointment: ");
-        int idx = scanner.nextInt();
-        scanner.nextLine();
-
-        service.cancelAppointmentByUser(list.get(idx - 1), user);
-
-        System.out.println("Cancelled successfully ✅");
     }
 
-    private static void modifyAppointmentByAdmin(
-            Scanner scanner,
-            AppointmentService service,
-            AppointmentRepository repo) {
-
-        List<Appointment> list = repo.findAll();
-
-        if (list.isEmpty()) {
-            System.out.println("No appointments.");
-            return;
-        }
-
-        viewAllAppointments(repo);
-
-        System.out.print("Choose appointment: ");
-        int idx = scanner.nextInt();
-        scanner.nextLine();
-
-        Appointment appointment = list.get(idx - 1);
-
-        List<TimeSlot> slots = new ArrayList<>(service.getAvailableSlots());
-        if (!slots.contains(appointment.getTimeSlot())) {
-            slots.add(appointment.getTimeSlot());
-        }
-
-        System.out.println("Choose new slot:");
-        for (int i = 0; i < slots.size(); i++) {
-            System.out.println((i + 1) + ". " + slots.get(i).getStartTime());
-        }
-
-        int s = scanner.nextInt();
-
-        System.out.print("New duration: ");
-        int d = scanner.nextInt();
-
-        System.out.print("New participants: ");
-        int p = scanner.nextInt();
-        scanner.nextLine();
-
-        service.modifyAppointmentByAdmin(appointment, slots.get(s - 1), d, p);
-
-        System.out.println("Modified successfully ✅");
+    private static List<TimeSlot> getAllSlots(TimeSlotRepository timeSlotRepository) {
+        return timeSlotRepository.findAll().stream()
+                .sorted(Comparator.comparing(TimeSlot::getStartTime))
+                .collect(Collectors.toList());
     }
 
-    private static void cancelAppointmentByAdmin(
-            Scanner scanner,
-            AppointmentService service,
-            AppointmentRepository repo) {
+    private static void seedSampleUsers(
+            UserRepository userRepository,
+            AccountValidationService validationService) {
 
-        List<Appointment> list = repo.findAll();
+        try {
+            userRepository.addUser(
+                    new User("user1", "1234", "Test User One", "user1@gmail.com", "0599000001"),
+                    validationService
+            );
 
-        if (list.isEmpty()) {
-            System.out.println("No appointments.");
-            return;
+            userRepository.addUser(
+                    new User("user2", "1234", "Test User Two", "user2@gmail.com", "0599000002"),
+                    validationService
+            );
+        } catch (Exception ignored) {
         }
-
-        viewAllAppointments(repo);
-
-        System.out.print("Choose appointment: ");
-        int idx = scanner.nextInt();
-        scanner.nextLine();
-
-        service.cancelAppointmentByAdmin(list.get(idx - 1));
-
-        System.out.println("Cancelled successfully ✅");
     }
-}*/
+
+    private static void seedSampleWeekSlots(TimeSlotRepository timeSlotRepository) {
+        LocalDate date = LocalDate.now().plusDays(1);
+        int workingDaysAdded = 0;
+
+        while (workingDaysAdded < 5) {
+            if (date.getDayOfWeek() != DayOfWeek.FRIDAY && date.getDayOfWeek() != DayOfWeek.SATURDAY) {
+                for (int hour = 8; hour < 16; hour++) {
+                    timeSlotRepository.addTimeSlot(new TimeSlot(LocalDateTime.of(date, LocalTime.of(hour, 0))));
+                    timeSlotRepository.addTimeSlot(new TimeSlot(LocalDateTime.of(date, LocalTime.of(hour, 30))));
+                }
+                workingDaysAdded++;
+            }
+            date = date.plusDays(1);
+        }
+    }
+
+    private static void sendReminderEmailsToUsers(List<Appointment> appointments) {
+        LocalDateTime now = LocalDateTime.now();
+
+        for (Appointment appointment : appointments) {
+            if (appointment.isCancelled()) {
+                continue;
+            }
+
+            if (appointment.getTimeSlot().getStartTime().isAfter(now)) {
+                sendEmail(
+                        appointment.getUser().getEmail(),
+                        "Appointment Reminder",
+                        "Reminder: you have an upcoming appointment at "
+                                + appointment.getTimeSlot().getStartTime() + "."
+                );
+            }
+        }
+    }
+
+    private static void sendEmail(String to, String subject, String body) {
+        final String senderEmail = "maryamabdoh2005@gmail.com";
+        final String appPassword = " kkrq anla qwgf kyfa";
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.gmail.com");
+        props.put("mail.smtp.port", "587");
+
+        Session session = Session.getInstance(props, new jakarta.mail.Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(senderEmail, appPassword);
+            }
+        });
+
+        try {
+            Message message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(senderEmail));
+            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+            message.setSubject(subject);
+            message.setText(body);
+
+            Transport.send(message);
+            System.out.println("Email sent to " + to);
+        } catch (Exception e) {
+            System.out.println("Email failed: " + e.getMessage());
+        }
+    }
+}

@@ -15,7 +15,7 @@ public class AdminRepository {
                 "admin",
                 "1234",
                 "System Admin",
-                "admin@appointment.com",
+                "maryamabdoh2005@gmail.com",
                 "0599000000"
         ));
     }

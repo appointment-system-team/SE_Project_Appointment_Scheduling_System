@@ -19,5 +19,6 @@ public class WorkingHoursRule {
 
         return !appointmentStart.isBefore(START_OF_WORK)
                 && !appointmentEnd.isAfter(END_OF_WORK);
+ 
     }
 }

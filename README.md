@@ -129,46 +129,45 @@ The project uses a `config.properties` file to store email configuration values 
 This is better than writing these values directly inside the code.
 
 Example:
-```properties
-mail.sender=your_email@gmail.com
-mail.password=your_app_password
+`mail.sender=your_email@gmail.com`
+`mail.password=your_app_password`
 
 ---
 
 ## Testing
 The project includes unit tests using:
 
-- JUnit 5
-- Mockito
-- JaCoCo
+- `JUnit 5`
+- `Mockito`
+- `JaCoCo`
 
 The tests cover:
 
-- appointment booking
-- validation rules
-- edge cases
-- notification behavior
-- repository behavior
+- `appointment booking`
+- `validation rules`
+- `edge cases`
+- `notification behavior`
+- `repository behavior`
 
 ---
 
 ## Technologies Used
-- Java
-- Maven
-- JUnit 5
-- Mockito
-- JaCoCo
-- Swing / JOptionPane
-- Object-Oriented Programming
+- `Java`
+- `Maven`
+- `JUnit 5`
+- `Mockito`
+- `JaCoCo`
+- `Swing / JOptionPane`
+- `Object-Oriented Programming`
 
 ---
 
-Notes
-The project currently uses in-memory repositories, so data is not saved permanently after closing the program.
-The system is designed mainly to demonstrate software engineering concepts such as layering, testing, and design patterns.
-The notification service is mocked for simplicity and testing purposes.
+## Notes
+- The project currently uses in-memory repositories, so data is not saved permanently after closing the program.
+- The system is designed mainly to demonstrate software engineering concepts such as layering, testing, and design patterns.
+- The notification service is mocked for simplicity and testing purposes.
 
-Conclusion
+## Conclusion
 This project helped us practice how to build a small but complete software system using Java.
 It includes authentication, booking management, validation rules, notifications, design patterns, and testing.
 It also shows how software can be organized into layers to make it easier to understand and maintain.

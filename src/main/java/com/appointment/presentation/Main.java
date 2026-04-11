@@ -51,6 +51,8 @@ import java.util.Scanner;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import com.appointment.config.AppConfig;
+
 public class Main {
 
     private static final Scanner scanner = new Scanner(System.in);
@@ -1044,8 +1046,8 @@ public class Main {
     }
 
     private static void sendEmail(String to, String subject, String body) {
-        final String senderEmail = "maryamabdoh2005@gmail.com";
-        final String appPassword = " kkrq anla qwgf kyfa";
+    	final String senderEmail = AppConfig.getSenderEmail();
+    	final String appPassword = AppConfig.getAppPassword();
 
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");

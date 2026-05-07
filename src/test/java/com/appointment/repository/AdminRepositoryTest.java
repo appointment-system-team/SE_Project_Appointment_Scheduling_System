@@ -25,6 +25,7 @@ class AdminRepositoryTest {
         assertEquals(1, admins.size());
         assertEquals("admin", admins.get(0).getUsername());
         assertEquals("System Admin", admins.get(0).getFullName());
+        assertEquals("maryamabdoh2005@gmail.com", admins.get(0).getEmail());
     }
 
     @Test
@@ -50,10 +51,11 @@ class AdminRepositoryTest {
     void shouldReturnAdminWhenEmailExists() {
         AdminRepository repository = new AdminRepository();
 
-        Administrator admin = repository.findByEmail("admin@appointment.com");
+        Administrator admin = repository.findByEmail("maryamabdoh2005@gmail.com");
 
         assertNotNull(admin);
         assertEquals("admin", admin.getUsername());
+        assertEquals("maryamabdoh2005@gmail.com", admin.getEmail());
     }
 
     @Test
@@ -83,7 +85,7 @@ class AdminRepositoryTest {
     void shouldReturnTrueWhenEmailExists() {
         AdminRepository repository = new AdminRepository();
 
-        assertTrue(repository.emailExists("admin@appointment.com"));
+        assertTrue(repository.emailExists("maryamabdoh2005@gmail.com"));
     }
 
     @Test

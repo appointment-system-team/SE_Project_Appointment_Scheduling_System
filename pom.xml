@@ -23,6 +23,9 @@
     <jacoco.version>0.8.12</jacoco.version>
 
     <!-- SonarCloud -->
+    <sonar.coverage.exclusions>
+**/Main.java
+</sonar.coverage.exclusions>
     <sonar.organization>appointment-system-team</sonar.organization>
     <sonar.projectKey>appointment-system-team_SE_Project_Appointment_Scheduling_System</sonar.projectKey>
     <sonar.host.url>https://sonarcloud.io</sonar.host.url>

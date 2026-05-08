@@ -15,11 +15,11 @@ public class AppConfig {
     static {
         try (InputStream input = AppConfig.class.getClassLoader().getResourceAsStream("config.properties")) {
             if (input == null) {
-                throw new RuntimeException("config.properties file not found.");
+            	throw new IllegalStateException("config.properties file not found.");
             }
             properties.load(input);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load config.properties", e);
+        	throw new IllegalStateException("Failed to load config.properties", e);
         }
     }
 

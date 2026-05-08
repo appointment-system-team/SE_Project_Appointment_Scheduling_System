@@ -56,6 +56,7 @@ import com.appointment.config.AppConfig;
 public class Main {
 
     private static final Scanner scanner = new Scanner(System.in);
+    private static final String CHOOSE_MESSAGE = "Choose: ";
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("EEE dd/MM/yyyy");
     private static final DateTimeFormatter TIME_FORMAT =
@@ -158,7 +159,7 @@ public class Main {
                         System.out.println("Goodbye.");
                         break;
                     default:
-                        System.out.println("Invalid choice.");
+                    	System.out.print(CHOOSE_MESSAGE);
                 }
             } catch (Exception e) {
                 System.out.println("Operation failed: " + e.getMessage());
@@ -230,7 +231,7 @@ public class Main {
                         System.out.println("User logged out.");
                         break;
                     default:
-                        System.out.println("Invalid choice.");
+                    	System.out.print(CHOOSE_MESSAGE);
                 }
             } catch (Exception e) {
                 System.out.println("Operation failed: " + e.getMessage());
@@ -290,7 +291,7 @@ public class Main {
                         System.out.println("Admin logged out.");
                         break;
                     default:
-                        System.out.println("Invalid choice.");
+                    	System.out.print(CHOOSE_MESSAGE);
                 }
             } catch (Exception e) {
                 System.out.println("Operation failed: " + e.getMessage());

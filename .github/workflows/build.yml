@@ -15,9 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -26,15 +27,13 @@ jobs:
           java-version: 17
           cache: maven
 
-      - name: Build Project
-        run: mvn clean verify
-
-      - name: SonarCloud Analysis
+      - name: Build, Test, Coverage and SonarCloud Analysis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: >
-          mvn sonar:sonar
+          mvn -B clean verify sonar:sonar
           -Dsonar.projectKey=appointment-system-team_SE_Project_Appointment_Scheduling_System
           -Dsonar.organization=appointment-system-team
           -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
